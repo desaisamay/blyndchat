@@ -31,3 +31,6 @@ captures/
 /.settings/
 /.classpath
 /.project
+
+# Heap dumps
+*.hprof
