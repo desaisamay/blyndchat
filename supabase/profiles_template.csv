@@ -1,0 +1,3 @@
+name,age,height,religion,caste,profession,location,image_url,about,gender,annual_income,phone_number
+Priya Sharma,26,5'4",Hindu,Brahmin,Software Engineer,Mumbai,https://YOUR-PROJECT.supabase.co/storage/v1/object/public/profiles/priya.jpg,Loves traveling and reading.,Female,12 LPA,+919999999999
+Rahul Verma,28,5'10",Hindu,Kayastha,Banker,Delhi,https://YOUR-PROJECT.supabase.co/storage/v1/object/public/profiles/rahul.jpg,Foodie and movie buff.,Male,18 LPA,+919888888888
