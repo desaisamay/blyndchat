@@ -1,0 +1,33 @@
+# OS & IDE
+.DS_Store
+.idea/
+*.iml
+.vscode/
+
+# Gradle
+.gradle/
+build/
+*/build/
+
+# Android
+local.properties
+captures/
+.externalNativeBuild/
+
+# Keystores (DO NOT COMMIT SECRETS)
+*.jks
+*.keystore
+*.keystore.jks
+
+# Logs & Dumps
+*.log
+*.hprof
+
+# Artifacts
+*.apk
+*.aab
+
+# Misc
+/.settings/
+/.classpath
+/.project
