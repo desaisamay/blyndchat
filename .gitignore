@@ -34,3 +34,6 @@ captures/
 
 # Heap dumps
 *.hprof
+
+# Heap dumps
+*.hprof
