@@ -2,12 +2,33 @@ package com.example.shaadi.network
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
+import retrofit2.http.GET
 import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Query
 
 @JsonClass(generateAdapter = true)
-data class SupabaseSignupRequest(val email: String, val password: String)
+data class SupabaseUserMeta(
+    val name: String? = null,
+    val age: Int? = null,
+    val height: String? = null,
+    val religion: String? = null,
+    val caste: String? = null,
+    val profession: String? = null,
+    val location: String? = null,
+    @Json(name = "image_url") val imageUrl: String? = null,
+    val about: String? = null,
+    val gender: String? = null,
+    @Json(name = "annual_income") val annualIncome: String? = null,
+    @Json(name = "phone_number") val phoneNumber: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseSignupRequest(
+    val email: String,
+    val password: String,
+    val data: SupabaseUserMeta? = null
+)
 
 @JsonClass(generateAdapter = true)
 data class SupabaseSignupResponse(val id: String?, val email: String?)
@@ -58,4 +79,16 @@ interface SupabaseAuthService {
 
     @POST("verify")
     suspend fun verifyOtp(@Body body: VerifyRequest): VerifyResponse
+
+    // Get current user (requires Authorization: Bearer <access_token>)
+    @JsonClass(generateAdapter = true)
+    data class SupabaseUser(
+        val id: String?,
+        val email: String?,
+        @Json(name = "user_metadata") val userMetadata: Map<String, Any>?,
+        @Json(name = "raw_user_meta_data") val rawUserMetaData: Map<String, Any>?
+    )
+
+    @GET("user")
+    suspend fun getUser(): SupabaseUser
 }

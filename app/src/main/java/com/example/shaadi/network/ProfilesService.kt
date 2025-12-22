@@ -2,9 +2,8 @@ package com.example.shaadi.network
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
-import retrofit2.http.GET
-import retrofit2.http.Headers
-import retrofit2.http.Query
+import retrofit2.Response
+import retrofit2.http.*
 
 @JsonClass(generateAdapter = true)
 data class ProfileDto(
@@ -31,4 +30,32 @@ interface ProfilesService {
         @Query("select") select: String = "*",
         @Query("limit") limit: Int? = null
     ): List<ProfileDto>
+
+    @JsonClass(generateAdapter = true)
+    data class ProfileUpsertDto(
+        val id: String,
+        val name: String?,
+        val age: Int? = null,
+        val height: String? = null,
+        val religion: String? = null,
+        val caste: String? = null,
+        val profession: String? = null,
+        val location: String? = null,
+        @Json(name = "image_url") val imageUrl: String? = null,
+        val about: String? = null,
+        val gender: String? = null,
+        @Json(name = "annual_income") val annualIncome: String? = null,
+        @Json(name = "phone_number") val phoneNumber: String? = null
+    )
+
+    // Upsert by primary key using PostgREST
+    @Headers(
+        "Accept: application/json",
+        "Prefer: resolution=merge-duplicates",
+        "Prefer: return=minimal"
+    )
+    @POST("profiles?on_conflict=id")
+    suspend fun upsertProfiles(
+        @Body body: List<ProfileUpsertDto>
+    ): Response<Void>
 }

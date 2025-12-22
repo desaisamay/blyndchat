@@ -37,10 +37,21 @@ class CredentialStore(context: Context) {
         prefs.edit().clear().apply()
     }
 
+    fun savePendingImageUri(uri: String?) {
+        if (uri == null) {
+            prefs.edit().remove(KEY_PENDING_IMAGE_URI).apply()
+        } else {
+            prefs.edit().putString(KEY_PENDING_IMAGE_URI, uri).apply()
+        }
+    }
+    fun getPendingImageUri(): String? = prefs.getString(KEY_PENDING_IMAGE_URI, null)
+    fun clearPendingImageUri() { prefs.edit().remove(KEY_PENDING_IMAGE_URI).apply() }
+
     companion object {
         private const val PREF_NAME = "secure_credentials"
         private const val KEY_EMAIL = "email"
         private const val KEY_PASSWORD_HASH = "password_hash"
         private const val KEY_TOKEN = "auth_token"
+        private const val KEY_PENDING_IMAGE_URI = "pending_image_uri"
     }
 }

@@ -14,6 +14,14 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.shaadi.data.model.Profile
 import com.example.shaadi.data.profile.ProfilesRepository
+import com.example.shaadi.data.auth.CredentialStore
+import com.example.shaadi.network.SupabaseRestApiClient
+import com.example.shaadi.network.InterestsService
+import com.example.shaadi.network.InterestDto
+import com.example.shaadi.network.SupabaseApiClient
+import com.example.shaadi.network.SupabaseAuthService
+import com.example.shaadi.util.JwtUtils
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -22,6 +30,9 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
     var profile by remember { mutableStateOf<Profile?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var showPhone by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val store = remember { CredentialStore(navController.context.applicationContext) }
+    var info by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(profileId) {
         error = null
@@ -105,10 +116,64 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
                     Spacer(modifier = Modifier.height(32.dp))
                 
                     Button(
-                        onClick = { /* TODO: Send Interest */ },
+                        onClick = {
+                            info = null; error = null
+                            val token = store.getToken()
+                            val receiverId = p.id
+                            if (token.isNullOrBlank()) {
+                                error = "Please login to send interest"
+                            } else {
+                                scope.launch {
+                                    var uid = JwtUtils.getUserIdFromToken(token)
+                                    if (uid.isNullOrBlank()) {
+                                        // Fallback to Supabase /auth/v1/user endpoint
+                                        val fetched = runCatching {
+                                            val authRetrofit = SupabaseApiClient.authedRetrofit(token)
+                                            val authService = authRetrofit.create(SupabaseAuthService::class.java)
+                                            authService.getUser().id
+                                        }
+                                        if (fetched.isSuccess && !fetched.getOrNull().isNullOrBlank()) {
+                                            uid = fetched.getOrNull()
+                                        }
+                                    }
+                                    if (uid.isNullOrBlank()) {
+                                        error = "Unable to identify user"
+                                    } else {
+                                        if (uid == receiverId) {
+                                            error = "You cannot send interest to yourself"
+                                        } else {
+                                        runCatching {
+                                            val retrofit = SupabaseRestApiClient.authedRetrofit(token)
+                                            val svc = retrofit.create(InterestsService::class.java)
+                                            val body = InterestDto(
+                                                id = null,
+                                                senderId = uid!!,
+                                                receiverId = receiverId,
+                                                status = "pending",
+                                                createdAt = null,
+                                                updatedAt = null
+                                            )
+                                            val resp = svc.sendInterest(body)
+                                            if (!resp.isSuccessful) {
+                                                val err = try { resp.errorBody()?.string() } catch (_: Exception) { null }
+                                                throw IllegalStateException("Interest send failed: http=${resp.code()} ${err ?: ""}")
+                                            }
+                                        }.onSuccess {
+                                            info = "Interest sent"
+                                        }.onFailure {
+                                            error = it.message ?: "Failed to send interest"
+                                        }
+                                        }
+                                    }
+                                }
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Send Interest")
+                    ) { Text("Send Interest") }
+
+                    if (info != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = info!!, color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }

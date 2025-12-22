@@ -8,6 +8,7 @@ import com.example.shaadi.ui.auth.LoginScreen
 import com.example.shaadi.ui.auth.SignupScreen
 import com.example.shaadi.ui.home.HomeScreen
 import com.example.shaadi.ui.home.ProfileDetailScreen
+import com.example.shaadi.ui.chat.ChatScreen
 
 @Composable
 fun ShaadiApp() {
@@ -29,6 +30,11 @@ fun ShaadiApp() {
         composable("profile/{profileId}") { backStackEntry ->
             val profileId = backStackEntry.arguments?.getString("profileId")
             ProfileDetailScreen(navController = navController, profileId = profileId)
+        }
+        composable("chat/{conversationId}/{peerId}") { backStackEntry ->
+            val conversationId = backStackEntry.arguments?.getString("conversationId")
+            val peerId = backStackEntry.arguments?.getString("peerId")
+            ChatScreen(navController = navController, conversationId = conversationId, peerId = peerId)
         }
     }
 }

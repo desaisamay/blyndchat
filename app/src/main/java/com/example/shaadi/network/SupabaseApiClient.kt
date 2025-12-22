@@ -33,4 +33,23 @@ object SupabaseApiClient {
             .addConverterFactory(MoshiConverterFactory.create())
             .build()
     }
+
+    fun authedRetrofit(accessToken: String): Retrofit {
+        val authedClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val req = chain.request().newBuilder()
+                    .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
+                    .addHeader("Authorization", "Bearer $accessToken")
+                    .build()
+                chain.proceed(req)
+            }
+            .addInterceptor(logging)
+            .build()
+
+        return Retrofit.Builder()
+            .baseUrl(BuildConfig.SUPABASE_URL.trimEnd('/') + "/auth/v1/")
+            .client(authedClient)
+            .addConverterFactory(MoshiConverterFactory.create())
+            .build()
+    }
 }
