@@ -4,10 +4,13 @@ import android.app.Activity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -25,6 +28,7 @@ import androidx.navigation.NavController
 import com.blyndchat.data.auth.CredentialStore
 import com.blyndchat.ui.theme.Gradients
 import com.blyndchat.ui.theme.ShaadiGold
+import com.blyndchat.ui.theme.ShaadiRed
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 
@@ -34,6 +38,7 @@ fun SettingsScreen(navController: NavController) {
     val context = navController.context
     val store = remember { CredentialStore(context.applicationContext) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
     var currentMode by remember { mutableStateOf(store.getThemeMode()) }
 
     Scaffold(
@@ -63,21 +68,32 @@ fun SettingsScreen(navController: NavController) {
             color = MaterialTheme.colorScheme.background
         ) {
             val items = listOf("Theme")
-            LazyColumn(modifier = Modifier.padding(16.dp)) {
-                items(items) { item ->
-                    Column(modifier = Modifier
-                        .clickable {
+            Column(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(modifier = Modifier.weight(1f).padding(16.dp)) {
+                    items(items) { item ->
+                        Column(modifier = Modifier
+                            .clickable {
+                                if (item == "Theme") {
+                                    showThemeDialog = true
+                                }
+                            }
+                            .padding(vertical = 12.dp)) {
+                            Text(text = item, style = MaterialTheme.typography.titleMedium)
                             if (item == "Theme") {
-                                showThemeDialog = true
+                                val label = if (currentMode == "black") "Black" else "White"
+                                Text(text = "Current: $label", style = MaterialTheme.typography.bodyMedium)
                             }
                         }
-                        .padding(vertical = 12.dp)) {
-                        Text(text = item, style = MaterialTheme.typography.titleMedium)
-                        if (item == "Theme") {
-                            val label = if (currentMode == "black") "Black" else "White"
-                            Text(text = "Current: $label", style = MaterialTheme.typography.bodyMedium)
-                        }
                     }
+                }
+                Button(
+                    onClick = { showLogoutDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ShaadiRed)
+                ) {
+                    Text("Log Out")
                 }
             }
             if (showThemeDialog) {
@@ -90,6 +106,25 @@ fun SettingsScreen(navController: NavController) {
                         showThemeDialog = false
                         // Restart activity to apply theme immediately
                         (navController.context as? Activity)?.recreate()
+                    }
+                )
+            }
+            if (showLogoutDialog) {
+                AlertDialog(
+                    onDismissRequest = { showLogoutDialog = false },
+                    title = { Text("Log Out") },
+                    text = { Text("Are you sure you want to log out?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showLogoutDialog = false
+                            store.clear()
+                            navController.navigate("login") {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        }) { Text("Log Out") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") }
                     }
                 )
             }
