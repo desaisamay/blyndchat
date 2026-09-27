@@ -12,7 +12,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.shaadi"
+        applicationId = "com.blindchat.app"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
@@ -48,17 +48,28 @@ android {
         }
     }
 
-    // Inject API config from local.properties (not checked-in)
+    // Include images folder as app assets so Logo.png can be loaded at runtime
+    sourceSets {
+        getByName("main") {
+            assets.srcDirs("src/main/assets", "src/main/images")
+        }
+    }
+
+    // Inject API config via env vars (preferred for CI) with fallback to local.properties
     val props = Properties()
     val localPropsFile = rootProject.file("local.properties")
     if (localPropsFile.exists()) {
         localPropsFile.inputStream().use { props.load(it) }
     }
-    val apiBaseUrl = (props.getProperty("API_BASE_URL") ?: "")
-    val useRemoteAuth = (props.getProperty("USE_REMOTE_AUTH") ?: "false")
-    val supabaseUrl = (props.getProperty("SUPABASE_URL") ?: "")
-    val supabaseAnon = (props.getProperty("SUPABASE_ANON_KEY") ?: "")
-    val useSupabase = (props.getProperty("USE_SUPABASE_AUTH") ?: "false")
+    fun envOrProp(key: String, default: String = ""): String {
+        val env = System.getenv(key)
+        return (env ?: props.getProperty(key) ?: default)
+    }
+    val apiBaseUrl = envOrProp("API_BASE_URL")
+    val useRemoteAuth = envOrProp("USE_REMOTE_AUTH", "false")
+    val supabaseUrl = envOrProp("SUPABASE_URL")
+    val supabaseAnon = envOrProp("SUPABASE_ANON_KEY")
+    val useSupabase = envOrProp("USE_SUPABASE_AUTH", "false")
 
     defaultConfig {
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
@@ -104,6 +115,9 @@ dependencies {
     implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
     kapt("com.squareup.moshi:moshi-kotlin-codegen:1.15.1")
 
+    // Coroutines (for background token upsert)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
@@ -111,9 +125,18 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    // Firebase Cloud Messaging (via BoM)
+    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
+    implementation("com.google.firebase:firebase-messaging-ktx")
 }
 
 // Allow references to generated code
 kapt {
     correctErrorTypes = true
+}
+
+// Apply Google Services plugin only if google-services.json exists to avoid build breaks
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }

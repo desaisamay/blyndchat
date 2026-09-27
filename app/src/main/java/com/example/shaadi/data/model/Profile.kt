@@ -13,5 +13,6 @@ data class Profile(
     val about: String,
     val gender: String? = null,
     val annualIncome: String? = null,
-    val phoneNumber: String? = null
+    val phoneNumber: String? = null,
+    val createdAt: String? = null
 )

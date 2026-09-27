@@ -83,6 +83,13 @@ fun PhoneLoginScreen(navController: NavController) {
                             val token = resp.accessToken ?: throw IllegalStateException("No token returned")
                             val store = com.example.shaadi.data.auth.CredentialStore(context)
                             store.saveToken(token)
+                            // Persist userId from authed /user for reliable identification
+                            runCatching {
+                                val authed = com.example.shaadi.network.SupabaseApiClient.authedRetrofit(token)
+                                val authedSvc = authed.create(com.example.shaadi.network.SupabaseAuthService::class.java)
+                                val me = authedSvc.getUser()
+                                if (!me.id.isNullOrBlank()) store.saveUserId(me.id!!)
+                            }
                         }
                     }
                     if (result.isSuccess) {

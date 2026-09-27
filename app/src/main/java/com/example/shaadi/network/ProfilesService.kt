@@ -19,7 +19,8 @@ data class ProfileDto(
     val about: String?,
     val gender: String?,
     @Json(name = "annual_income") val annualIncome: String?,
-    @Json(name = "phone_number") val phoneNumber: String?
+    @Json(name = "phone_number") val phoneNumber: String?,
+    @Json(name = "created_at") val createdAt: String? = null
 )
 
 interface ProfilesService {
@@ -29,6 +30,15 @@ interface ProfilesService {
     suspend fun getProfiles(
         @Query("select") select: String = "*",
         @Query("limit") limit: Int? = null
+    ): List<ProfileDto>
+
+    // Fetch a single profile by id using PostgREST filter (e.g., id=eq.<uid>)
+    @Headers("Accept: application/json")
+    @GET("profiles")
+    suspend fun getProfilesById(
+        @Query("id") idEq: String,
+        @Query("select") select: String = "*",
+        @Query("limit") limit: Int? = 1
     ): List<ProfileDto>
 
     @JsonClass(generateAdapter = true)

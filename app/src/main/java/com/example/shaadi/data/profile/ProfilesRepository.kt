@@ -27,7 +27,8 @@ class ProfilesRepository private constructor() {
         about = this.about ?: "",
         gender = this.gender,
         annualIncome = this.annualIncome,
-        phoneNumber = this.phoneNumber
+        phoneNumber = this.phoneNumber,
+        createdAt = this.createdAt
     )
 
     companion object {

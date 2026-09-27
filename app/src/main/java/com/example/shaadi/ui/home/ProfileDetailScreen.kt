@@ -18,8 +18,6 @@ import com.example.shaadi.data.auth.CredentialStore
 import com.example.shaadi.network.SupabaseRestApiClient
 import com.example.shaadi.network.InterestsService
 import com.example.shaadi.network.InterestDto
-import com.example.shaadi.network.SupabaseApiClient
-import com.example.shaadi.network.SupabaseAuthService
 import com.example.shaadi.util.JwtUtils
 import kotlinx.coroutines.launch
 
@@ -86,16 +84,24 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
                     Spacer(modifier = Modifier.height(16.dp))
                 
                     Text(text = "About Me", style = MaterialTheme.typography.titleMedium)
-                    Text(text = p.about, style = MaterialTheme.typography.bodyMedium)
-                
+                    Text(text = p.about.ifBlank { "—" }, style = MaterialTheme.typography.bodyMedium)
+
                     Spacer(modifier = Modifier.height(16.dp))
-                
+
                     Text(text = "Personal Details", style = MaterialTheme.typography.titleMedium)
-                    Text(text = "Height: ${p.height}")
-                    Text(text = "Religion: ${p.religion}")
-                    Text(text = "Caste: ${p.caste}")
-                    if (!p.gender.isNullOrBlank()) Text(text = "Gender: ${p.gender}")
-                    if (!p.annualIncome.isNullOrBlank()) Text(text = "Annual Income: ${p.annualIncome}")
+                    fun show(value: String?): String = if (value.isNullOrBlank()) "Not specified" else value
+                    Text(text = "Name: ${show(p.name)}")
+                    Text(text = "Age: ${if (p.age > 0) p.age.toString() else "Not specified"}")
+                    Text(text = "Gender: ${show(p.gender)}")
+                    Text(text = "Height: ${show(p.height)}")
+                    Text(text = "Religion: ${show(p.religion)}")
+                    Text(text = "Caste: ${show(p.caste)}")
+                    Text(text = "Profession: ${show(p.profession)}")
+                    Text(text = "Location: ${show(p.location)}")
+                    Text(text = "Annual Income: ${show(p.annualIncome)}")
+                    if (!p.createdAt.isNullOrBlank()) {
+                        Text(text = "Member since: ${p.createdAt.take(10)}")
+                    }
                     if (!p.phoneNumber.isNullOrBlank()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -111,6 +117,8 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
                                 Text(if (showPhone) "Shown" else "Show Number")
                             }
                         }
+                    } else {
+                        Text(text = "Phone: Not specified")
                     }
                 
                     Spacer(modifier = Modifier.height(32.dp))
@@ -123,46 +131,30 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
                             if (token.isNullOrBlank()) {
                                 error = "Please login to send interest"
                             } else {
-                                scope.launch {
-                                    var uid = JwtUtils.getUserIdFromToken(token)
-                                    if (uid.isNullOrBlank()) {
-                                        // Fallback to Supabase /auth/v1/user endpoint
-                                        val fetched = runCatching {
-                                            val authRetrofit = SupabaseApiClient.authedRetrofit(token)
-                                            val authService = authRetrofit.create(SupabaseAuthService::class.java)
-                                            authService.getUser().id
-                                        }
-                                        if (fetched.isSuccess && !fetched.getOrNull().isNullOrBlank()) {
-                                            uid = fetched.getOrNull()
-                                        }
-                                    }
-                                    if (uid.isNullOrBlank()) {
-                                        error = "Unable to identify user"
-                                    } else {
-                                        if (uid == receiverId) {
-                                            error = "You cannot send interest to yourself"
-                                        } else {
+                                // Prefer the user id cached at login; fall back to decoding the JWT.
+                                val uid = store.getUserId()?.takeIf { it.isNotBlank() }
+                                    ?: JwtUtils.getUserIdFromToken(token)
+                                android.util.Log.d("SendInterest", "storedUid=${store.getUserId()} jwtUid=${JwtUtils.getUserIdFromToken(token)} tokenLen=${token.length} receiver=$receiverId")
+                                if (uid.isNullOrBlank()) {
+                                    error = "Unable to identify user"
+                                } else {
+                                    scope.launch {
                                         runCatching {
                                             val retrofit = SupabaseRestApiClient.authedRetrofit(token)
                                             val svc = retrofit.create(InterestsService::class.java)
                                             val body = InterestDto(
                                                 id = null,
-                                                senderId = uid!!,
+                                                senderId = uid,
                                                 receiverId = receiverId,
                                                 status = "pending",
                                                 createdAt = null,
                                                 updatedAt = null
                                             )
-                                            val resp = svc.sendInterest(body)
-                                            if (!resp.isSuccessful) {
-                                                val err = try { resp.errorBody()?.string() } catch (_: Exception) { null }
-                                                throw IllegalStateException("Interest send failed: http=${resp.code()} ${err ?: ""}")
-                                            }
+                                            svc.sendInterest(body)
                                         }.onSuccess {
                                             info = "Interest sent"
                                         }.onFailure {
                                             error = it.message ?: "Failed to send interest"
-                                        }
                                         }
                                     }
                                 }

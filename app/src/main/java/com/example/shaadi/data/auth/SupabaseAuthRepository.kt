@@ -29,7 +29,18 @@ class SupabaseAuthRepository private constructor(
             service.passwordGrant(body = SupabaseTokenRequest(email, password))
         }
         store.saveToken(resp.accessToken)
+        store.saveRefreshToken(resp.refreshToken)
         store.saveCredentials(email, "")
+
+        // Best-effort: fetch and cache user id for downstream flows
+        runCatching {
+            val authed = com.example.shaadi.network.SupabaseApiClient.authedRetrofit(resp.accessToken)
+            val authedSvc = authed.create(com.example.shaadi.network.SupabaseAuthService::class.java)
+            val user = kotlinx.coroutines.runBlocking { authedSvc.getUser() }
+            if (!user.id.isNullOrBlank()) {
+                store.saveUserId(user.id!!)
+            }
+        }
     }
 
     override fun logout() { store.clearToken() }
