@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.shaadi"
+    namespace = "com.blyndchat"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.blindchat.app"
+        applicationId = "com.blyndchat.app"
         minSdk = 24
         targetSdk = 34
         versionCode = 1

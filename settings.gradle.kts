@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ShaadiClone"
+rootProject.name = "BlyndChat"
 include(":app")
