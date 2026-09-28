@@ -1,12 +1,13 @@
 package com.blyndchat.ui.auth
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -20,6 +21,7 @@ import com.blyndchat.data.auth.RemoteAuthRepository
 import com.blyndchat.data.auth.SupabaseAuthRepository
 import com.blyndchat.data.auth.CredentialStore
 import com.blyndchat.data.auth.AuthRepository
+import com.blyndchat.ui.theme.ShaadiGold
 import com.blyndchat.network.ProfilesService
 import com.blyndchat.network.SupabaseRestApiClient
 import com.blyndchat.util.JwtUtils
@@ -46,45 +48,57 @@ fun LoginScreen(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .background(Color.White)
     ) {
+        // Top ~55%: full-bleed logo
         AsyncImage(
             model = ImageRequest.Builder(context)
                 .data("file:///android_asset/Logo.png")
                 .build(),
             contentDescription = "Blynd Chat logo",
-            contentScale = ContentScale.Fit,
+            contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(160.dp)
-                .clip(RoundedCornerShape(24.dp))
+                .fillMaxWidth()
+                .weight(0.55f)
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(text = "Welcome Back", style = MaterialTheme.typography.headlineMedium)
-        
-        Spacer(modifier = Modifier.height(32.dp))
-
-        OutlinedTextField(
+        // Bottom ~45%: login fields
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.45f)
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            OutlinedTextField(
             value = email,
             onValueChange = { email = it },
             label = { Text("Email") },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = ShaadiGold,
+                focusedLabelColor = ShaadiGold,
+                cursorColor = ShaadiGold
+            ),
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
             label = { Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = ShaadiGold,
+                focusedLabelColor = ShaadiGold,
+                cursorColor = ShaadiGold
+            ),
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         if (error != null) {
             Text(text = error!!, color = MaterialTheme.colorScheme.error)
@@ -154,7 +168,8 @@ fun LoginScreen(navController: NavController) {
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = ShaadiGold)
         ) {
             Text("Login")
         }
@@ -162,13 +177,19 @@ fun LoginScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedButton(
                 onClick = { navController.navigate("phone_login") },
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ShaadiGold),
+                border = BorderStroke(1.dp, ShaadiGold),
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Login with Phone (OTP)") }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        TextButton(onClick = { navController.navigate("signup") }) {
+        TextButton(
+            onClick = { navController.navigate("signup") },
+            colors = ButtonDefaults.textButtonColors(contentColor = ShaadiGold)
+        ) {
             Text("Don't have an account? Sign Up")
+        }
         }
     }
 }
