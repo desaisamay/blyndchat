@@ -18,6 +18,15 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -49,7 +58,7 @@ fun ProfileSettingsScreen(navController: NavController) {
     var about by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("") }
     var annualIncome by remember { mutableStateOf("") }
-    var phoneNumber by remember { mutableStateOf("") }
+    var existingPhoneNumber by remember { mutableStateOf<String?>(null) }
 
     // Load current profile
     LaunchedEffect(token) {
@@ -73,28 +82,57 @@ fun ProfileSettingsScreen(navController: NavController) {
                 about = p.about ?: ""
                 gender = p.gender ?: ""
                 annualIncome = p.annualIncome ?: ""
-                phoneNumber = p.phoneNumber ?: ""
+                existingPhoneNumber = p.phoneNumber
             }
         }.onFailure {
             scope.launch { snackbarHostState.showSnackbar(it.message ?: "Failed to load profile") }
         }
     }
 
+    val colors = com.blyndchat.ui.theme.LocalAppColors.current
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Profile Settings") },
+                title = { Text("Profile Settings", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = colors.topBarTitle) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Back")
+                    IconButton(
+                        onClick = { navController.popBackStack() },
+                        modifier = Modifier.padding(start = 6.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (colors.isDark) Color.White else Color(0xFF150D24),
+                            shadowElevation = 3.dp,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = if (colors.isDark) Color(0xFF150D24) else Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = colors.topBarContainer,
+                    navigationIconContentColor = if (colors.isDark) Color.White else Color(0xFF150D24),
+                    titleContentColor = colors.topBarTitle
+                )
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
-            modifier = Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(colors.screenBackgroundBrush)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
@@ -108,7 +146,6 @@ fun ProfileSettingsScreen(navController: NavController) {
             OutlinedTextField(value = about, onValueChange = { about = it }, label = { Text("About") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = gender, onValueChange = { gender = it }, label = { Text("Gender") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = annualIncome, onValueChange = { annualIncome = it }, label = { Text("Annual Income") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = phoneNumber, onValueChange = { phoneNumber = it }, label = { Text("Phone Number") }, modifier = Modifier.fillMaxWidth())
             Spacer(modifier = Modifier.height(8.dp))
             Button(onClick = {
                 val jwt = token
@@ -136,7 +173,7 @@ fun ProfileSettingsScreen(navController: NavController) {
                     about = about,
                     gender = gender.ifBlank { null },
                     annualIncome = annualIncome.ifBlank { null },
-                    phoneNumber = phoneNumber.ifBlank { null }
+                    phoneNumber = existingPhoneNumber
                 )
                 scope.launch {
                     runCatching { svc.upsertProfiles(listOf(upsert)) }

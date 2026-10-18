@@ -1,24 +1,43 @@
 package com.blyndchat.ui.home
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.blyndchat.data.ai.AiBotConfig
+import com.blyndchat.data.ai.AiBotEngine
+import com.blyndchat.data.ai.BotMessageStore
+import com.blyndchat.data.auth.CredentialStore
 import com.blyndchat.data.model.Profile
 import com.blyndchat.data.profile.ProfilesRepository
-import com.blyndchat.data.auth.CredentialStore
-import com.blyndchat.network.SupabaseRestApiClient
-import com.blyndchat.network.InterestsService
 import com.blyndchat.network.InterestDto
+import com.blyndchat.network.InterestsService
+import com.blyndchat.network.MessageDto
+import com.blyndchat.network.SupabaseRestApiClient
+import com.blyndchat.notifications.NotificationUtils
+import com.blyndchat.ui.theme.LuxuryEmerald
+import com.blyndchat.ui.theme.LuxuryGold
+import com.blyndchat.ui.theme.LuxuryRose
 import com.blyndchat.util.JwtUtils
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,14 +45,18 @@ import kotlinx.coroutines.launch
 fun ProfileDetailScreen(navController: NavController, profileId: String?) {
     val repo = remember { ProfilesRepository.getInstance(navController.context) }
     var profile by remember { mutableStateOf<Profile?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var showPhone by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val store = remember { CredentialStore(navController.context.applicationContext) }
     var info by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(profileId) {
         error = null
+        val bot = profileId?.let { AiBotConfig.getBotProfile(it) }
+        if (bot != null) {
+            profile = bot
+            return@LaunchedEffect
+        }
         val result = repo.fetchProfiles(limit = null)
         if (result.isSuccess) {
             val list = result.getOrDefault(emptyList())
@@ -46,129 +69,337 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
         }
     }
 
+    val colors = com.blyndchat.ui.theme.LocalAppColors.current
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Profile Details") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Profile Details",
+                            fontWeight = FontWeight.Bold,
+                            color = colors.topBarTitle
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("✨", fontSize = 14.sp)
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = colors.topBarTitle)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = colors.topBarContainer
+                )
             )
         }
     ) { paddingValues ->
         Column(
             modifier = Modifier
+                .fillMaxSize()
                 .padding(paddingValues)
+                .background(colors.screenBackgroundBrush)
                 .verticalScroll(rememberScrollState())
         ) {
-            Box(modifier = Modifier.height(400.dp).fillMaxWidth()) {
+            // Hero Image with smooth bottom scrim and status badge
+            Box(modifier = Modifier.height(380.dp).fillMaxWidth()) {
                 AsyncImage(
                     model = profile?.imageUrl ?: "",
                     contentDescription = "Profile Picture",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+
+                // Top Badge
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = colors.badgeBackground,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.badgeBorder),
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .align(Alignment.TopStart)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("✨", fontSize = 12.sp)
+                        Text(
+                            text = if (AiBotConfig.isBot(profileId)) "AI Verified" else "Verified Profile",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (colors.isDark) LuxuryGold else Color(0xFF942852)
+                        )
+                    }
+                }
+
+                // Bottom gradient fade
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = colors.scrimColors
+                            )
+                        )
+                )
             }
-            
-            Column(modifier = Modifier.padding(16.dp)) {
+
+            Column(modifier = Modifier.padding(20.dp)) {
                 if (error != null) {
                     Text(text = error!!, color = MaterialTheme.colorScheme.error)
                 }
                 val p = profile
                 if (p != null) {
-                    Text(text = "${p.name}, ${p.age}", style = MaterialTheme.typography.headlineMedium)
-                    Text(text = "${p.profession} in ${p.location}", style = MaterialTheme.typography.bodyLarge)
-                
-                    Spacer(modifier = Modifier.height(16.dp))
-                
-                    Text(text = "About Me", style = MaterialTheme.typography.titleMedium)
-                    Text(text = p.about.ifBlank { "—" }, style = MaterialTheme.typography.bodyMedium)
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(text = "Personal Details", style = MaterialTheme.typography.titleMedium)
-                    fun show(value: String?): String = if (value.isNullOrBlank()) "Not specified" else value
-                    Text(text = "Name: ${show(p.name)}")
-                    Text(text = "Age: ${if (p.age > 0) p.age.toString() else "Not specified"}")
-                    Text(text = "Gender: ${show(p.gender)}")
-                    Text(text = "Height: ${show(p.height)}")
-                    Text(text = "Religion: ${show(p.religion)}")
-                    Text(text = "Caste: ${show(p.caste)}")
-                    Text(text = "Profession: ${show(p.profession)}")
-                    Text(text = "Location: ${show(p.location)}")
-                    Text(text = "Annual Income: ${show(p.annualIncome)}")
-                    if (!p.createdAt.isNullOrBlank()) {
-                        Text(text = "Member since: ${p.createdAt.take(10)}")
+                    // Name & Age
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "${p.name}, ${p.age}",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.ExtraBold
+                            ),
+                            color = colors.textPrimary
+                        )
+                        Text("✓", color = if (colors.isDark) LuxuryGold else Color(0xFFB33664), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     }
-                    if (!p.phoneNumber.isNullOrBlank()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            val phoneText = if (showPhone) "Phone: ${p.phoneNumber}" else "Phone: ••••••••••"
-                            Text(text = phoneText, modifier = Modifier.weight(1f))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            FilledTonalButton(
-                                onClick = { showPhone = true },
-                                enabled = !showPhone
-                            ) {
-                                Text(if (showPhone) "Shown" else "Show Number")
-                            }
+
+                    Text(
+                        text = "💼 ${p.profession}  •  📍 ${p.location}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.textSecondary
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // About Me Card
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = colors.cardContainer,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, colors.cardBorderSubtle),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "About",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = if (colors.isDark) LuxuryGold else Color(0xFF9A2D55)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = p.about.ifBlank { "Open to meaningful connections and authentic conversations." },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textPrimary,
+                                lineHeight = 20.sp
+                            )
                         }
-                    } else {
-                        Text(text = "Phone: Not specified")
                     }
-                
-                    Spacer(modifier = Modifier.height(32.dp))
-                
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Personal Details Grid
+                    Text(
+                        text = "Personal Details",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = colors.textPrimary
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    fun show(value: String?): String = if (value.isNullOrBlank()) "—" else value
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DetailTile(label = "Age", value = if (p.age > 0) "${p.age} yrs" else "—", icon = "🎂", modifier = Modifier.weight(1f))
+                        DetailTile(label = "Height", value = show(p.height), icon = "📏", modifier = Modifier.weight(1f))
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DetailTile(label = "Religion", value = show(p.religion), icon = "🕉️", modifier = Modifier.weight(1f))
+                        DetailTile(label = "Caste", value = show(p.caste), icon = "🏷️", modifier = Modifier.weight(1f))
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DetailTile(label = "Profession", value = show(p.profession), icon = "💼", modifier = Modifier.weight(1f))
+                        DetailTile(label = "Location", value = show(p.location), icon = "📍", modifier = Modifier.weight(1f))
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DetailTile(label = "Annual Income", value = show(p.annualIncome), icon = "💰", modifier = Modifier.weight(1f))
+                        DetailTile(label = "Gender", value = show(p.gender), icon = "👤", modifier = Modifier.weight(1f))
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Connect Now CTA Button
                     Button(
                         onClick = {
                             info = null; error = null
                             val token = store.getToken()
                             val receiverId = p.id
-                            if (token.isNullOrBlank()) {
-                                error = "Please login to send interest"
-                            } else {
-                                // Prefer the user id cached at login; fall back to decoding the JWT.
-                                val uid = store.getUserId()?.takeIf { it.isNotBlank() }
-                                    ?: JwtUtils.getUserIdFromToken(token)
-                                android.util.Log.d("SendInterest", "storedUid=${store.getUserId()} jwtUid=${JwtUtils.getUserIdFromToken(token)} tokenLen=${token.length} receiver=$receiverId")
-                                if (uid.isNullOrBlank()) {
-                                    error = "Unable to identify user"
-                                } else {
-                                    scope.launch {
-                                        runCatching {
-                                            val retrofit = SupabaseRestApiClient.authedRetrofit(token)
-                                            val svc = retrofit.create(InterestsService::class.java)
-                                            val body = InterestDto(
-                                                id = null,
-                                                senderId = uid,
-                                                receiverId = receiverId,
-                                                status = "pending",
-                                                createdAt = null,
-                                                updatedAt = null
+                            val uid = store.getUserId()?.takeIf { it.isNotBlank() }
+                                ?: token?.let { JwtUtils.getUserIdFromToken(it) }
+                                ?: if (AiBotConfig.isBot(receiverId)) "user_local" else null
+
+                            if (AiBotConfig.isBot(receiverId)) {
+                                val currentUid = uid ?: "user_local"
+                                scope.launch {
+                                    val convoId = BotMessageStore.conversationId(currentUid, receiverId)
+                                    val isNew = !BotMessageStore.hasConversation(convoId)
+                                    if (isNew) {
+                                        val greeting = AiBotEngine.getGreeting(receiverId)
+                                        BotMessageStore.addMessage(
+                                            convoId, MessageDto(
+                                                id = "bot_greet_${System.currentTimeMillis()}",
+                                                conversationId = convoId,
+                                                senderId = receiverId,
+                                                receiverId = currentUid,
+                                                content = greeting,
+                                                createdAt = BotMessageStore.nowTimestamp()
                                             )
-                                            svc.sendInterest(body)
-                                        }.onSuccess {
-                                            info = "Interest sent"
-                                        }.onFailure {
-                                            error = it.message ?: "Failed to send interest"
-                                        }
+                                        )
+                                    }
+                                    info = "Connection sent"
+                                    delay(600)
+                                    NotificationUtils.showMessageNotification(
+                                        context = navController.context,
+                                        conversationId = convoId,
+                                        peerId = receiverId,
+                                        title = p.name,
+                                        body = "hi"
+                                    )
+                                }
+                            } else if (token.isNullOrBlank()) {
+                                error = "Please login to send interest"
+                            } else if (uid.isNullOrBlank()) {
+                                error = "Unable to identify user"
+                            } else {
+                                scope.launch {
+                                    runCatching {
+                                        val retrofit = SupabaseRestApiClient.authedRetrofit(token)
+                                        val svc = retrofit.create(InterestsService::class.java)
+                                        val body = InterestDto(
+                                            id = null,
+                                            senderId = uid,
+                                            receiverId = receiverId,
+                                            status = "pending",
+                                            createdAt = null,
+                                            updatedAt = null
+                                        )
+                                        svc.sendInterest(body)
+                                    }.onSuccess {
+                                        info = "Connection sent"
+                                    }.onFailure {
+                                        error = it.message ?: "Failed to send connection"
                                     }
                                 }
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Send Interest") }
+                        enabled = info != "Connection sent",
+                        shape = RoundedCornerShape(26.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent
+                        ),
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
+                            .background(
+                                brush = if (info == "Connection sent") {
+                                    Brush.horizontalGradient(listOf(Color(0xFF2A1B4E), Color(0xFF2A1B4E)))
+                                } else {
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            LuxuryRose,
+                                            Color(0xFFFF5E7E),
+                                            Color(0xFFFFB03A)
+                                        )
+                                    )
+                                },
+                                shape = RoundedCornerShape(26.dp)
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (info == "Connection sent") Color(0x44FFFFFF) else LuxuryGold.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(26.dp)
+                            )
+                    ) {
+                        Text(
+                            text = if (info == "Connection sent") "Connection Sent ✓"
+                            else if (AiBotConfig.isBot(p.id)) "Connect Now ✨"
+                            else "Send Interest ✨",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            ),
+                            color = if (info == "Connection sent") Color(0xFFC7B8E0) else Color.White
+                        )
+                    }
 
                     if (info != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = info!!, color = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(text = info!!, color = LuxuryGold, fontWeight = FontWeight.SemiBold)
+                    }
+                    if (error != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(text = error!!, color = LuxuryRose, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DetailTile(label: String, value: String, icon: String, modifier: Modifier = Modifier) {
+    val colors = com.blyndchat.ui.theme.LocalAppColors.current
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = colors.detailTileContainer,
+        border = androidx.compose.foundation.BorderStroke(1.dp, colors.detailTileBorder),
+        modifier = modifier
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(icon, fontSize = 14.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = label,
+                    fontSize = 11.sp,
+                    color = colors.detailTileLabel,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = value,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = colors.detailTileValue
+            )
         }
     }
 }

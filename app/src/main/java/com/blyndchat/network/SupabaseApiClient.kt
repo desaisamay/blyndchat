@@ -23,6 +23,9 @@ object SupabaseApiClient {
     private val okHttp = OkHttpClient.Builder()
         .addInterceptor(authHeaderInterceptor)
         .addInterceptor(logging)
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
     val retrofit: Retrofit by lazy {
@@ -44,6 +47,9 @@ object SupabaseApiClient {
                 chain.proceed(req)
             }
             .addInterceptor(logging)
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
             .build()
 
         return Retrofit.Builder()

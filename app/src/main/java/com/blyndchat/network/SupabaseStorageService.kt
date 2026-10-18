@@ -31,11 +31,15 @@ interface SupabaseStorageService {
 
     companion object {
         fun buildFilePart(context: Context, uri: Uri, formName: String = "file", filename: String = "upload.jpg"): MultipartBody.Part {
-            val contentResolver = context.contentResolver
-            val mime = contentResolver.getType(uri) ?: "image/jpeg"
-            val input = contentResolver.openInputStream(uri) ?: throw IllegalStateException("Cannot open image stream")
-            val bytes = input.readBytes()
-            input.close()
+            val isAsset = uri.scheme == "file" && uri.path?.startsWith("/android_asset/") == true
+            val mime = if (uri.path?.endsWith(".png", ignoreCase = true) == true) "image/png" else (context.contentResolver.getType(uri) ?: "image/jpeg")
+            val bytes = if (isAsset) {
+                val assetPath = uri.path!!.removePrefix("/android_asset/")
+                context.assets.open(assetPath).use { it.readBytes() }
+            } else {
+                val input = context.contentResolver.openInputStream(uri) ?: throw IllegalStateException("Cannot open image stream")
+                input.use { it.readBytes() }
+            }
             val rb: RequestBody = bytes.toRequestBody(mime.toMediaTypeOrNull())
             return MultipartBody.Part.createFormData(formName, filename, rb)
         }

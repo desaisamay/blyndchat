@@ -37,6 +37,18 @@ class RemoteAuthRepository private constructor(
 
     override fun currentUserEmail(): String? = store.getEmail()
 
+    override suspend fun sendPasswordResetOtp(email: String): Result<Unit> = runCatching {
+        require(email.isNotBlank()) { "Email is required" }
+        // Remote auth stub
+    }
+
+    override suspend fun resetPasswordWithOtp(email: String, otp: String, newPassword: String): Result<Unit> = runCatching {
+        require(email.isNotBlank()) { "Email is required" }
+        require(otp.isNotBlank()) { "OTP is required" }
+        require(newPassword.length >= 6) { "Password must be at least 6 characters" }
+        // Remote auth stub
+    }
+
     companion object {
         @Volatile private var INSTANCE: RemoteAuthRepository? = null
 

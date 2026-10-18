@@ -70,6 +70,7 @@ android {
     val supabaseUrl = envOrProp("SUPABASE_URL")
     val supabaseAnon = envOrProp("SUPABASE_ANON_KEY")
     val useSupabase = envOrProp("USE_SUPABASE_AUTH", "false")
+    val geminiApiKey = envOrProp("GEMINI_API_KEY", "")
 
     defaultConfig {
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
@@ -77,6 +78,7 @@ android {
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnon\"")
         buildConfigField("boolean", "USE_SUPABASE_AUTH", useSupabase)
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 }
 

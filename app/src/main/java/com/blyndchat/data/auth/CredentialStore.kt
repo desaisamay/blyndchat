@@ -46,6 +46,26 @@ class CredentialStore(context: Context) {
         prefs.edit().clear().apply()
     }
 
+    fun savePendingProfile(name: String?, age: Int?, gender: String?, avatarUri: String?) {
+        val editor = prefs.edit()
+        if (name != null) editor.putString(KEY_PENDING_NAME, name) else editor.remove(KEY_PENDING_NAME)
+        if (age != null) editor.putString(KEY_PENDING_AGE, age.toString()) else editor.remove(KEY_PENDING_AGE)
+        if (gender != null) editor.putString(KEY_PENDING_GENDER, gender) else editor.remove(KEY_PENDING_GENDER)
+        if (avatarUri != null) editor.putString(KEY_PENDING_IMAGE_URI, avatarUri) else editor.remove(KEY_PENDING_IMAGE_URI)
+        editor.apply()
+    }
+    fun getPendingName(): String? = prefs.getString(KEY_PENDING_NAME, null)
+    fun getPendingAge(): Int? = prefs.getString(KEY_PENDING_AGE, null)?.toIntOrNull()
+    fun getPendingGender(): String? = prefs.getString(KEY_PENDING_GENDER, null)
+    fun clearPendingProfile() {
+        prefs.edit()
+            .remove(KEY_PENDING_NAME)
+            .remove(KEY_PENDING_AGE)
+            .remove(KEY_PENDING_GENDER)
+            .remove(KEY_PENDING_IMAGE_URI)
+            .apply()
+    }
+
     fun savePendingImageUri(uri: String?) {
         if (uri == null) {
             prefs.edit().remove(KEY_PENDING_IMAGE_URI).apply()
@@ -79,6 +99,9 @@ class CredentialStore(context: Context) {
         private const val KEY_TOKEN = "auth_token"
         private const val KEY_REFRESH_TOKEN = "refresh_token"
         private const val KEY_PENDING_IMAGE_URI = "pending_image_uri"
+        private const val KEY_PENDING_NAME = "pending_name"
+        private const val KEY_PENDING_AGE = "pending_age"
+        private const val KEY_PENDING_GENDER = "pending_gender"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_THEME_MODE = "theme_mode"
     }

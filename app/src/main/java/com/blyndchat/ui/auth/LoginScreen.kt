@@ -1,7 +1,6 @@
 package com.blyndchat.ui.auth
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -50,7 +49,7 @@ fun LoginScreen(navController: NavController) {
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // Top ~55%: full-bleed logo
+        // Top ~60%: full-bleed logo
         AsyncImage(
             model = ImageRequest.Builder(context)
                 .data("file:///android_asset/Logo.png")
@@ -59,14 +58,14 @@ fun LoginScreen(navController: NavController) {
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.55f)
+                .weight(0.605f)
         )
 
-        // Bottom ~45%: login fields
+        // Bottom ~40%: login fields
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.45f)
+                .weight(0.395f)
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -76,6 +75,8 @@ fun LoginScreen(navController: NavController) {
             onValueChange = { email = it },
             label = { Text("Email") },
             colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black,
                 focusedBorderColor = ShaadiGold,
                 focusedLabelColor = ShaadiGold,
                 cursorColor = ShaadiGold
@@ -91,6 +92,8 @@ fun LoginScreen(navController: NavController) {
             label = { Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
             colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black,
                 focusedBorderColor = ShaadiGold,
                 focusedLabelColor = ShaadiGold,
                 cursorColor = ShaadiGold
@@ -98,7 +101,25 @@ fun LoginScreen(navController: NavController) {
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(
+                onClick = { navController.navigate("forgot_password") },
+                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+            ) {
+                Text(
+                    text = "Forgot Password?",
+                    color = ShaadiGold,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (error != null) {
             Text(text = error!!, color = MaterialTheme.colorScheme.error)
@@ -117,47 +138,48 @@ fun LoginScreen(navController: NavController) {
                             if (token != null) {
                                 val userId = JwtUtils.getUserIdFromToken(token)
                                 if (userId != null) {
+                                    val pendingName = store.getPendingName() ?: email.substringBefore('@')
+                                    val pendingAge = store.getPendingAge()
+                                    val pendingGender = store.getPendingGender()
+                                    var avatarUrl = store.getPendingImageUri()
+
+                                    // If a pending avatar image exists, try uploading to Supabase Storage
+                                    if (avatarUrl != null) {
+                                        runCatching {
+                                            val storageRetrofit = com.blyndchat.network.SupabaseStorageApiClient.authedRetrofit(token)
+                                            val storage = storageRetrofit.create(com.blyndchat.network.SupabaseStorageService::class.java)
+                                            val uri = Uri.parse(avatarUrl)
+                                            val ext = if (avatarUrl?.endsWith(".png", true) == true) "png" else "jpg"
+                                            val filename = "users_${userId}.$ext"
+                                            val path = "users/$userId/$filename"
+                                            val part = com.blyndchat.network.SupabaseStorageService.buildFilePart(context, uri, filename = filename)
+                                            val uploadResp = storage.upload(bucket = "profiles", path = path, file = part)
+                                            if (uploadResp.isSuccessful) {
+                                                avatarUrl = "${BuildConfig.SUPABASE_URL}/storage/v1/object/public/profiles/$path"
+                                            }
+                                        }.onFailure {
+                                            Log.e("LoginScreen", "Avatar upload failed, will fallback to asset URI", it)
+                                        }
+                                    }
+
                                     val upsertResult = runCatching {
                                         val retrofit = SupabaseRestApiClient.authedRetrofit(token)
                                         val service = retrofit.create(ProfilesService::class.java)
                                         val body = listOf(
                                             ProfilesService.ProfileUpsertDto(
                                                 id = userId,
-                                                name = email.substringBefore('@')
+                                                name = pendingName,
+                                                age = pendingAge,
+                                                gender = pendingGender,
+                                                imageUrl = avatarUrl
                                             )
                                         )
                                         service.upsertProfiles(body)
                                     }
-                                    if (upsertResult.isFailure) {
+                                    if (upsertResult.isSuccess) {
+                                        store.clearPendingProfile()
+                                    } else {
                                         Log.e("LoginScreen", "Profile upsert failed", upsertResult.exceptionOrNull())
-                                    }
-                                    // If a pending signup image exists, upload it and set image_url
-                                    val pending = store.getPendingImageUri()
-                                    if (pending != null) {
-                                        val uploadResult = runCatching {
-                                            val storageRetrofit = com.blyndchat.network.SupabaseStorageApiClient.authedRetrofit(token)
-                                            val storage = storageRetrofit.create(com.blyndchat.network.SupabaseStorageService::class.java)
-                                            val uri = Uri.parse(pending)
-                                            val filename = "users_${userId}.jpg"
-                                            val path = "users/$userId/$filename"
-                                            val part = com.blyndchat.network.SupabaseStorageService.buildFilePart(context, uri, filename = filename)
-                                            storage.upload(bucket = "profiles", path = path, file = part)
-                                            val publicUrl = "${BuildConfig.SUPABASE_URL}/storage/v1/object/public/profiles/$path"
-                                            val retrofit2 = SupabaseRestApiClient.authedRetrofit(token)
-                                            val svc2 = retrofit2.create(ProfilesService::class.java)
-                                            val update = listOf(
-                                                ProfilesService.ProfileUpsertDto(
-                                                    id = userId,
-                                                    name = null,
-                                                    imageUrl = publicUrl
-                                                )
-                                            )
-                                            svc2.upsertProfiles(update)
-                                            store.clearPendingImageUri()
-                                        }
-                                        if (uploadResult.isFailure) {
-                                            Log.e("LoginScreen", "Image upload or profile image_url update failed", uploadResult.exceptionOrNull())
-                                        }
                                     }
                                 }
                             }
@@ -174,21 +196,29 @@ fun LoginScreen(navController: NavController) {
             Text("Login")
         }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = { navController.navigate("phone_login") },
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ShaadiGold),
-                border = BorderStroke(1.dp, ShaadiGold),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Login with Phone (OTP)") }
-
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         TextButton(
             onClick = { navController.navigate("signup") },
             colors = ButtonDefaults.textButtonColors(contentColor = ShaadiGold)
         ) {
             Text("Don't have an account? Sign Up")
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        OutlinedButton(
+            onClick = {
+                store.saveToken("guest_session_token")
+                store.saveUserId("user_guest")
+                navController.navigate("home") {
+                    popUpTo("login") { inclusive = true }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = ShaadiGold)
+        ) {
+            Text("Explore as Guest / Demo")
         }
         }
     }

@@ -25,10 +25,21 @@ val ShaadiGold = Color(0xFFC9A961)
 
 val ShaadiRed = Color(0xFFD32F2F)
 
-// Fancy neon palette
+// Fancy neon & luxury palette
 val JetBlack = Color(0xFF000000)
 val OnJetBlack = Color(0xFFFFFFFF)
 val NeonCyan = Color(0xFF00FFFF)
 val NeonMagenta = Color(0xFFFF00FF)
 val ElectricBlue = Color(0xFF00BFFF)
 val AcidGreen = Color(0xFF7FFF00)
+
+// Luxury Dating / Matchmaking palette
+val LuxuryObsidian = Color(0xFF0D0618)
+val LuxurySurface = Color(0xFF160B29)
+val LuxurySurfaceVariant = Color(0xFF22123D)
+val LuxuryRose = Color(0xFFE05388)
+val LuxuryGold = Color(0xFFFFD700)
+val LuxuryEmerald = Color(0xFF00FF7F)
+val LuxuryTextPrimary = Color(0xFFF7F4FA)
+val LuxuryTextSecondary = Color(0xFFB8A9CD)
+

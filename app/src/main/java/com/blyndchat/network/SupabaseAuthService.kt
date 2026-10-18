@@ -5,6 +5,7 @@ import com.squareup.moshi.JsonClass
 import retrofit2.http.GET
 import retrofit2.http.Body
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Query
 
 @JsonClass(generateAdapter = true)
@@ -43,6 +44,23 @@ data class SupabaseTokenResponse(
     @Json(name = "refresh_token") val refreshToken: String?
 )
 
+@JsonClass(generateAdapter = true)
+data class SupabaseRecoverRequest(
+    val email: String
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseVerifyEmailOtpRequest(
+    val email: String,
+    val token: String,
+    val type: String = "recovery"
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseUpdateUserRequest(
+    val password: String
+)
+
 interface SupabaseAuthService {
     @POST("signup")
     suspend fun signup(@Body body: SupabaseSignupRequest): SupabaseSignupResponse
@@ -52,6 +70,15 @@ interface SupabaseAuthService {
         @Query("grant_type") grantType: String = "password",
         @Body body: SupabaseTokenRequest
     ): SupabaseTokenResponse
+
+    @POST("recover")
+    suspend fun recoverPassword(@Body body: SupabaseRecoverRequest): retrofit2.Response<okhttp3.ResponseBody>
+
+    @POST("verify")
+    suspend fun verifyEmailOtp(@Body body: SupabaseVerifyEmailOtpRequest): VerifyResponse
+
+    @PUT("user")
+    suspend fun updateUser(@Body body: SupabaseUpdateUserRequest): SupabaseUser
 
     // Phone OTP: request and verify
     @JsonClass(generateAdapter = true)

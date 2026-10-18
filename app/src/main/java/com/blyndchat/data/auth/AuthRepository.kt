@@ -9,6 +9,8 @@ interface AuthRepository {
     fun login(email: String, password: String): Result<Unit>
     fun logout()
     fun currentUserEmail(): String?
+    suspend fun sendPasswordResetOtp(email: String): Result<Unit>
+    suspend fun resetPasswordWithOtp(email: String, otp: String, newPassword: String): Result<Unit>
 }
 
 class LocalAuthRepository private constructor(private val store: CredentialStore) : AuthRepository {
@@ -35,6 +37,22 @@ class LocalAuthRepository private constructor(private val store: CredentialStore
     }
 
     override fun currentUserEmail(): String? = store.getEmail()
+
+    override suspend fun sendPasswordResetOtp(email: String): Result<Unit> = runCatching {
+        require(email.isNotBlank()) { "Email is required" }
+        val savedEmail = store.getEmail()
+        if (savedEmail != null && !savedEmail.equals(email.trim(), ignoreCase = true)) {
+            error("No account found with this email.")
+        }
+    }
+
+    override suspend fun resetPasswordWithOtp(email: String, otp: String, newPassword: String): Result<Unit> = runCatching {
+        require(email.isNotBlank()) { "Email is required" }
+        require(otp.isNotBlank()) { "OTP is required" }
+        require(newPassword.length >= 6) { "Password must be at least 6 characters" }
+        val hash = BCrypt.withDefaults().hashToString(12, newPassword.toCharArray())
+        store.saveCredentials(email.trim(), hash)
+    }
 
     companion object {
         @Volatile private var INSTANCE: LocalAuthRepository? = null
