@@ -417,15 +417,7 @@ fun HomeScreen(navController: NavController) {
                             val convoId = BotMessageStore.conversationId(effectiveUid, profile.id)
                             BotInterestStore.acceptRequest(context, profile.id, effectiveUid)
                             scope.launch {
-                                snackbarHostState.showSnackbar("It's a Match with ${profile.name}! Starting chat... ✨")
-                                delay(600)
-                                NotificationUtils.showMessageNotification(
-                                    context = context,
-                                    conversationId = convoId,
-                                    peerId = profile.id,
-                                    title = profile.name,
-                                    body = "hi"
-                                )
+                                snackbarHostState.showSnackbar("You and ${profile.name} are connected ✨ Tap 'Chats' to start")
                             }
                         } else {
                             if (!token.isNullOrBlank() && !myUid.isNullOrBlank()) {
@@ -639,10 +631,15 @@ private fun ChatsTab(
     val colors = com.blyndchat.ui.theme.LocalAppColors.current
     val effectiveUid = myUid?.takeIf { it.isNotBlank() } ?: "user_local"
     val acceptedBotIds = BotInterestStore.getAcceptedBotIds()
-    val localConversations = BotMessageStore.conversationsFor(effectiveUid).filter { convoId ->
-        val peerId = convoId.split("_").firstOrNull { it != effectiveUid } ?: ""
-        !AiBotConfig.isBot(peerId) || acceptedBotIds.contains(peerId)
+    val acceptedBotConvos = acceptedBotIds.map { botId ->
+        BotMessageStore.conversationId(effectiveUid, botId)
     }
+    val localConversations = (BotMessageStore.conversationsFor(effectiveUid) + acceptedBotConvos)
+        .distinct()
+        .filter { convoId ->
+            val peerId = convoId.split("_").firstOrNull { it != effectiveUid } ?: ""
+            !AiBotConfig.isBot(peerId) || acceptedBotIds.contains(peerId)
+        }
 
     LazyColumn(contentPadding = PaddingValues(16.dp)) {
         // Top section: "Recent Matches" horizontal stories
@@ -763,7 +760,12 @@ private fun ChatsTab(
                     ?: SeedProfiles.getProfileById(peerId)
                 val isAi = AiBotConfig.isAiModel(peerId)
                 val lastMsg = BotMessageStore.lastMessage(convoId)
-                val preview = lastMsg?.content ?: "Tap to chat"
+                val hasMessages = lastMsg != null
+                val preview = if (hasMessages) {
+                    lastMsg!!.content
+                } else {
+                    "You two are connected.. do you want to start the chat?"
+                }
 
                 Card(
                     onClick = { onPeerChatClick(convoId, peerId) },
@@ -828,8 +830,9 @@ private fun ChatsTab(
                                     }
                                 }
                                 Text(
-                                    text = "Now",
+                                    text = if (hasMessages) "Now" else "Connected",
                                     fontSize = 11.sp,
+                                    fontWeight = if (hasMessages) FontWeight.Normal else FontWeight.SemiBold,
                                     color = if (colors.isDark) LuxuryGold else Color(0xFF9A2D55)
                                 )
                             }
@@ -839,10 +842,11 @@ private fun ChatsTab(
                             Text(
                                 text = preview,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = colors.textSecondary,
+                                color = if (hasMessages) colors.textSecondary else (if (colors.isDark) LuxuryGold.copy(alpha = 0.92f) else LuxuryRose),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                fontSize = 13.sp
+                                fontSize = 13.sp,
+                                fontWeight = if (hasMessages) FontWeight.Normal else FontWeight.Medium
                             )
                         }
                     }

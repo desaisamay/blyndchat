@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -122,19 +125,7 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
             return@LaunchedEffect
         }
         if (isBotChat) {
-            if (!BotMessageStore.hasConversation(conversationId) && peerId != null) {
-                val greeting = AiBotEngine.getGreeting(peerId)
-                BotMessageStore.addMessage(
-                    conversationId, MessageDto(
-                        id = "bot_greet_${System.currentTimeMillis()}",
-                        conversationId = conversationId,
-                        senderId = peerId,
-                        receiverId = myId ?: "user_local",
-                        content = greeting,
-                        createdAt = BotMessageStore.nowTimestamp()
-                    )
-                )
-            }
+            BotMessageStore.initConversation(conversationId)
         } else {
             if (token.isNullOrBlank()) {
                 snackbarHostState.showSnackbar("Missing chat context")
@@ -247,9 +238,114 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                items(displayedMessages, key = { it.id ?: it.createdAt ?: (it.content + it.senderId) }) { msg ->
-                    val isMine = if (isBotChat) msg.senderId != peerId else (msg.senderId == myId)
-                    MessageBubble(message = msg, isMine = isMine)
+                if (displayedMessages.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 28.dp, bottom = 16.dp, start = 12.dp, end = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(22.dp),
+                                color = colors.cardContainer,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (colors.isDark) LuxuryGold.copy(alpha = 0.35f) else LuxuryRose.copy(alpha = 0.35f)
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(22.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(76.dp)
+                                            .border(
+                                                width = 2.dp,
+                                                brush = Brush.sweepGradient(
+                                                    listOf(LuxuryGold, LuxuryRose, Color(0xFF9D4EDD), LuxuryGold)
+                                                ),
+                                                shape = CircleShape
+                                            )
+                                            .padding(3.dp)
+                                            .clip(CircleShape)
+                                    ) {
+                                        AsyncImage(
+                                            model = botProfile?.imageUrl ?: "",
+                                            contentDescription = chatTitle,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                    Text(
+                                        text = "You and $chatTitle are connected ✨",
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.textPrimary,
+                                        fontSize = 17.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Text(
+                                        text = "Do you want to start the chat?",
+                                        color = if (colors.isDark) LuxuryGold else LuxuryRose,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Text(
+                                        text = "Break the ice with a warm hello or pick a conversation starter below ✨",
+                                        color = colors.textSecondary,
+                                        fontSize = 12.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    // Quick icebreaker chips
+                                    val starters = listOf("Hey! 👋", "Chai or coffee? ☕", "How was your day? ✨")
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 4.dp)
+                                    ) {
+                                        items(starters) { starter ->
+                                            Surface(
+                                                shape = RoundedCornerShape(16.dp),
+                                                color = if (colors.isDark) Color(0x33FFD700) else Color(0x22D64978),
+                                                border = androidx.compose.foundation.BorderStroke(
+                                                    1.dp,
+                                                    if (colors.isDark) LuxuryGold.copy(alpha = 0.5f) else LuxuryRose.copy(alpha = 0.5f)
+                                                ),
+                                                modifier = Modifier.clickable { input.value = starter }
+                                            ) {
+                                                Text(
+                                                    text = starter,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = if (colors.isDark) LuxuryGold else Color(0xFF9A2D55)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    items(displayedMessages, key = { it.id ?: it.createdAt ?: (it.content + it.senderId) }) { msg ->
+                        val isMine = if (isBotChat) msg.senderId != peerId else (msg.senderId == myId)
+                        MessageBubble(message = msg, isMine = isMine)
+                    }
                 }
 
                 // Typing indicator

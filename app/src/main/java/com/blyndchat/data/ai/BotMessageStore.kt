@@ -46,12 +46,22 @@ object BotMessageStore {
         typingState[conversationId] = typing
     }
 
+    fun initConversation(conversationId: String) {
+        store.getOrPut(conversationId) { mutableStateListOf() }
+    }
+
     fun hasConversation(conversationId: String): Boolean =
-        store[conversationId]?.isNotEmpty() == true
+        store.containsKey(conversationId)
 
     /** All conversation ids that involve the given user. */
     fun conversationsFor(userId: String): List<String> =
         store.keys.filter { it.contains(userId) }
+
+    /** Resets in-memory store for pure unit testing. */
+    fun clearForTesting() {
+        store.clear()
+        typingState.clear()
+    }
 
     /** The last message in a conversation, if any. */
     fun lastMessage(conversationId: String): MessageDto? =

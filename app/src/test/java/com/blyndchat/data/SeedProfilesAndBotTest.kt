@@ -255,12 +255,27 @@ class SeedProfilesAndBotTest {
         assertEquals(2, com.blyndchat.data.ai.BotInterestStore.pendingCount())
         assertEquals(setOf(AiBotConfig.BOT_ID_ARIA), com.blyndchat.data.ai.BotInterestStore.getAcceptedBotIds())
 
-        // BotMessageStore should have initialized the conversation with a greeting
+        // BotMessageStore should have initialized the conversation container, but bot must NOT initiate chat
         val convoId = com.blyndchat.data.ai.BotMessageStore.conversationId("test_user_123", AiBotConfig.BOT_ID_ARIA)
         assertTrue("Conversation must exist in BotMessageStore after acceptance", com.blyndchat.data.ai.BotMessageStore.hasConversation(convoId))
-        val lastMsg = com.blyndchat.data.ai.BotMessageStore.lastMessage(convoId)
-        assertNotNull(lastMsg)
-        assertEquals("Aria's greeting should be 'hi'", "hi", lastMsg?.content)
+        val initialMsg = com.blyndchat.data.ai.BotMessageStore.lastMessage(convoId)
+        assertNull("AI bot must NOT initiate the chat (no greeting message)", initialMsg)
+
+        // User initiates the chat
+        com.blyndchat.data.ai.BotMessageStore.addMessage(
+            convoId,
+            com.blyndchat.network.MessageDto(
+                id = "user_msg_1",
+                conversationId = convoId,
+                senderId = "test_user_123",
+                receiverId = AiBotConfig.BOT_ID_ARIA,
+                content = "Hey Aria, how's your day?",
+                createdAt = com.blyndchat.data.ai.BotMessageStore.nowTimestamp()
+            )
+        )
+        val userSentMsg = com.blyndchat.data.ai.BotMessageStore.lastMessage(convoId)
+        assertNotNull(userSentMsg)
+        assertEquals("Hey Aria, how's your day?", userSentMsg?.content)
 
         // 3. User rejects Maya's request
         com.blyndchat.data.ai.BotInterestStore.rejectRequest(context = null, botId = AiBotConfig.BOT_ID_MAYA)

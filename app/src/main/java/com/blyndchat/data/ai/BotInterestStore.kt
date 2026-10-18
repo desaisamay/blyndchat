@@ -87,22 +87,10 @@ object BotInterestStore {
             prefs.edit().putString(botId, STATUS_ACCEPTED).apply()
         }
 
-        // Ensure greeting message exists so the conversation is initialized in Chats
+        // Initialize the conversation container in BotMessageStore.
+        // The bot does NOT initiate the chat; the user initiates the chat after accepting.
         val convoId = BotMessageStore.conversationId(effectiveUid, botId)
-        if (!BotMessageStore.hasConversation(convoId)) {
-            val greeting = AiBotEngine.getGreeting(botId)
-            BotMessageStore.addMessage(
-                convoId,
-                MessageDto(
-                    id = "bot_greet_${System.currentTimeMillis()}",
-                    conversationId = convoId,
-                    senderId = botId,
-                    receiverId = effectiveUid,
-                    content = greeting,
-                    createdAt = BotMessageStore.nowTimestamp()
-                )
-            )
-        }
+        BotMessageStore.initConversation(convoId)
     }
 
     /**

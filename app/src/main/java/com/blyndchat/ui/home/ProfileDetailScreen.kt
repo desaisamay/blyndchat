@@ -24,6 +24,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.blyndchat.data.ai.AiBotConfig
 import com.blyndchat.data.ai.AiBotEngine
+import com.blyndchat.data.ai.BotInterestStore
 import com.blyndchat.data.ai.BotMessageStore
 import com.blyndchat.data.auth.CredentialStore
 import com.blyndchat.data.model.Profile
@@ -318,28 +319,18 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
                                 val currentUid = uid ?: "user_local"
                                 scope.launch {
                                     val convoId = BotMessageStore.conversationId(currentUid, receiverId)
-                                    val isNew = !BotMessageStore.hasConversation(convoId)
-                                    if (isNew) {
-                                        val greeting = AiBotEngine.getGreeting(receiverId)
-                                        BotMessageStore.addMessage(
-                                            convoId, MessageDto(
-                                                id = "bot_greet_${System.currentTimeMillis()}",
-                                                conversationId = convoId,
-                                                senderId = receiverId,
-                                                receiverId = currentUid,
-                                                content = greeting,
-                                                createdAt = BotMessageStore.nowTimestamp()
-                                            )
-                                        )
+                                    BotMessageStore.initConversation(convoId)
+                                    if (AiBotConfig.isAiModel(receiverId)) {
+                                        BotInterestStore.acceptRequest(navController.context, receiverId, currentUid)
                                     }
-                                    info = "Connection sent"
+                                    info = "Connected ✨"
                                     delay(600)
                                     NotificationUtils.showMessageNotification(
                                         context = navController.context,
                                         conversationId = convoId,
                                         peerId = receiverId,
                                         title = p.name,
-                                        body = "hi"
+                                        body = "You two are connected ✨ Tap to start the chat!"
                                     )
                                 }
                             } else if (token.isNullOrBlank()) {
