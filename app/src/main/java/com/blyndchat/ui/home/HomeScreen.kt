@@ -263,7 +263,7 @@ fun HomeScreen(navController: NavController) {
                                 Text(
                                     text = "Blynd Chat",
                                     style = MaterialTheme.typography.titleLarge.copy(
-                                        fontWeight = FontWeight.ExtraBold,
+                                        fontWeight = FontWeight.Normal,
                                         letterSpacing = 0.5.sp
                                     ),
                                     color = colors.topBarTitle
