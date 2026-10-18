@@ -199,6 +199,9 @@ fun LoginScreen(navController: NavController) {
                                         )
                                         service.upsertProfiles(body)
                                     }
+                                    if (pendingGender != null) {
+                                        store.saveUserGender(pendingGender)
+                                    }
                                     if (upsertResult.isSuccess) {
                                         store.clearPendingProfile()
                                     } else {

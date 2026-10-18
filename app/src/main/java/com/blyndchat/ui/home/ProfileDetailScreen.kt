@@ -28,6 +28,7 @@ import com.blyndchat.data.ai.BotMessageStore
 import com.blyndchat.data.auth.CredentialStore
 import com.blyndchat.data.model.Profile
 import com.blyndchat.data.profile.ProfilesRepository
+import com.blyndchat.data.profile.SeedProfiles
 import com.blyndchat.network.InterestDto
 import com.blyndchat.network.InterestsService
 import com.blyndchat.network.MessageDto
@@ -52,12 +53,18 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
 
     LaunchedEffect(profileId) {
         error = null
-        val bot = profileId?.let { AiBotConfig.getBotProfile(it) }
+        val userGender = store.getUserGender()
+        val bot = profileId?.let { AiBotConfig.getBotProfile(it, userGender) }
         if (bot != null) {
             profile = bot
             return@LaunchedEffect
         }
-        val result = repo.fetchProfiles(limit = null)
+        val seed = profileId?.let { SeedProfiles.getProfileById(it) }
+        if (seed != null) {
+            profile = seed
+            return@LaunchedEffect
+        }
+        val result = repo.fetchProfiles(userGender = userGender, limit = null)
         if (result.isSuccess) {
             val list = result.getOrDefault(emptyList())
             profile = list.firstOrNull { it.id == profileId }

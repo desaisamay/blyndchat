@@ -640,6 +640,10 @@ fun SignupScreen(navController: NavController) {
                         avoidedTopics = allAvoided.ifEmpty { null }
                     )
 
+                    if (gender.isNotBlank()) {
+                        store.saveUserGender(gender)
+                    }
+
                     val result = auth.register(email.trim(), password)
                     if (result.isSuccess) {
                         success = "Account created. Please login."

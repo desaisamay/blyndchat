@@ -10,12 +10,44 @@ import com.blyndchat.network.SupabaseRestApiClient
 class ProfilesRepository private constructor() {
     private val service: ProfilesService = SupabaseRestApiClient.retrofit.create(ProfilesService::class.java)
 
-    suspend fun fetchProfiles(limit: Int? = 100): Result<List<Profile>> {
+    /**
+     * Fetches profiles in strict sequence:
+     * 1. First 3: Built-in AI models tailored to opposite of [userGender].
+     * 2. Real profiles from database filtered to opposite gender and excluding [currentUserId].
+     * 3. 60 Curated Indian seed profiles of the opposite gender (optionally [shuffled] after 24h).
+     */
+    suspend fun fetchProfiles(
+        userGender: String? = null,
+        currentUserId: String? = null,
+        shuffled: Boolean = false,
+        limit: Int? = 100
+    ): Result<List<Profile>> {
+        val bots = AiBotConfig.getBotProfiles(userGender)
+
         val realProfiles = runCatching {
             val dtos = service.getProfiles(select = "*", limit = limit)
             dtos.map { it.toDomain() }
         }.getOrDefault(emptyList())
-        return Result.success(AiBotConfig.BOT_PROFILES + realProfiles)
+
+        val filteredReal = realProfiles.filter { profile ->
+            if (!currentUserId.isNullOrBlank() && profile.id == currentUserId) return@filter false
+            // Skip incomplete or half-created test rows from DB
+            if (profile.age <= 0 || profile.imageUrl.isBlank() || profile.name.isBlank()) return@filter false
+            // Strict opposite gender filtering
+            when {
+                userGender.equals("Male", ignoreCase = true) ->
+                    !profile.gender.equals("Male", ignoreCase = true)
+                userGender.equals("Female", ignoreCase = true) ->
+                    !profile.gender.equals("Female", ignoreCase = true)
+                else ->
+                    !profile.gender.equals("Male", ignoreCase = true)
+            }
+        }
+
+        val seeds = SeedProfiles.getSeedProfiles(userGender, shuffled = shuffled)
+
+        val allProfiles = bots + filteredReal + seeds
+        return Result.success(allProfiles)
     }
 
     private fun ProfileDto.toDomain(): Profile {

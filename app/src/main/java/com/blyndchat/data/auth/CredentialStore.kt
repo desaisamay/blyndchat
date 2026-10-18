@@ -135,6 +135,25 @@ class CredentialStore(context: Context) {
     }
     fun getThemeMode(): String = prefs.getString(KEY_THEME_MODE, null) ?: "black"
 
+    // User Gender persistence
+    fun saveUserGender(gender: String?) {
+        if (gender.isNullOrBlank()) {
+            prefs.edit().remove(KEY_USER_GENDER).apply()
+        } else {
+            prefs.edit().putString(KEY_USER_GENDER, gender).apply()
+        }
+    }
+    fun getUserGender(): String? = prefs.getString(KEY_USER_GENDER, null) ?: getPendingGender()
+
+    // 24-hour daily profile limit timestamp
+    fun saveDailyLimitTimestamp(timestamp: Long) {
+        prefs.edit().putLong(KEY_DAILY_LIMIT_TIMESTAMP, timestamp).apply()
+    }
+    fun getDailyLimitTimestamp(): Long = prefs.getLong(KEY_DAILY_LIMIT_TIMESTAMP, 0L)
+    fun clearDailyLimitTimestamp() {
+        prefs.edit().remove(KEY_DAILY_LIMIT_TIMESTAMP).apply()
+    }
+
     companion object {
         private const val PREF_NAME = "secure_credentials"
         private const val KEY_EMAIL = "email"
@@ -156,5 +175,7 @@ class CredentialStore(context: Context) {
         private const val KEY_PENDING_AVOIDED_TOPICS = "pending_avoided_topics"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_THEME_MODE = "theme_mode"
+        private const val KEY_USER_GENDER = "user_gender"
+        private const val KEY_DAILY_LIMIT_TIMESTAMP = "daily_limit_timestamp"
     }
 }

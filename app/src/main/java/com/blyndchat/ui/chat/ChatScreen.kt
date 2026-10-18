@@ -63,6 +63,7 @@ import com.blyndchat.data.ai.AiBotEngine
 import com.blyndchat.data.ai.BotMessageStore
 import com.blyndchat.data.ai.GeminiChatService
 import com.blyndchat.data.auth.CredentialStore
+import com.blyndchat.data.profile.SeedProfiles
 import com.blyndchat.network.MessageDto
 import com.blyndchat.network.MessagesService
 import com.blyndchat.network.SupabaseApiClient
@@ -93,7 +94,9 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
     val myId = store.getUserId()?.takeIf { it.isNotBlank() }
         ?: token?.let { JwtUtils.getUserIdFromToken(it) }
         ?: if (isBotChat) "user_local" else null
-    val botProfile = peerId?.let { AiBotConfig.getBotProfile(it) }
+    val userGender = store.getUserGender()
+    val botProfile = peerId?.let { AiBotConfig.getBotProfile(it, userGender) }
+        ?: peerId?.let { SeedProfiles.getProfileById(it) }
     val chatTitle = botProfile?.name ?: "Chat"
 
     // Load messages
@@ -177,7 +180,7 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                                     fontWeight = FontWeight.Bold,
                                     color = colors.topBarTitle
                                 )
-                                if (isBotChat) {
+                                if (AiBotConfig.isAiModel(peerId)) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),

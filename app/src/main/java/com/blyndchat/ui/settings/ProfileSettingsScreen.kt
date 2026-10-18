@@ -85,6 +85,9 @@ fun ProfileSettingsScreen(navController: NavController) {
                 location = p.location ?: ""
                 imageUrl = p.imageUrl ?: ""
                 gender = p.gender ?: ""
+                if (!p.gender.isNullOrBlank()) {
+                    store.saveUserGender(p.gender)
+                }
                 existingPhoneNumber = p.phoneNumber
 
                 val parsed = ProfileMetadataParser.parse(p.about)
@@ -235,7 +238,10 @@ fun ProfileSettingsScreen(navController: NavController) {
                     )
                     scope.launch {
                         runCatching { svc.upsertProfiles(listOf(upsert)) }
-                            .onSuccess { snackbarHostState.showSnackbar("Profile updated successfully") }
+                            .onSuccess {
+                                if (gender.isNotBlank()) store.saveUserGender(gender)
+                                snackbarHostState.showSnackbar("Profile updated successfully")
+                            }
                             .onFailure { snackbarHostState.showSnackbar(it.message ?: "Update failed") }
                     }
                 },

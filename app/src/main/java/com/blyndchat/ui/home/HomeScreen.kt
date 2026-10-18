@@ -29,6 +29,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -76,9 +77,11 @@ import com.blyndchat.data.ai.BotMessageStore
 import com.blyndchat.data.auth.CredentialStore
 import com.blyndchat.data.model.Profile
 import com.blyndchat.data.profile.ProfilesRepository
+import com.blyndchat.data.profile.SeedProfiles
 import com.blyndchat.network.InterestDto
 import com.blyndchat.network.InterestsService
 import com.blyndchat.network.MessageDto
+import com.blyndchat.network.ProfilesService
 import com.blyndchat.network.SupabaseRealtimeManager
 import com.blyndchat.network.SupabaseRestApiClient
 import com.blyndchat.notifications.NotificationUtils
@@ -110,6 +113,26 @@ fun HomeScreen(navController: NavController) {
             ?: token?.let { JwtUtils.getUserIdFromToken(it) }
     }
 
+    var userGender by remember { mutableStateOf(store.getUserGender()) }
+    var dailyLimitTimestamp by remember { mutableStateOf(store.getDailyLimitTimestamp()) }
+    var lastSwipedProfile by remember { mutableStateOf<Profile?>(null) }
+
+    // Fetch gender from Supabase if not yet cached locally
+    LaunchedEffect(token, myUid) {
+        if (userGender.isNullOrBlank() && !token.isNullOrBlank() && !myUid.isNullOrBlank()) {
+            runCatching {
+                val authed = SupabaseRestApiClient.authedRetrofit(token)
+                val svc = authed.create(ProfilesService::class.java)
+                val list = svc.getProfilesById("eq.$myUid", select = "gender", limit = 1)
+                val g = list.firstOrNull()?.gender
+                if (!g.isNullOrBlank()) {
+                    store.saveUserGender(g)
+                    userGender = g
+                }
+            }
+        }
+    }
+
     // ---- Selected tab; seed from SavedStateHandle "targetTab" deep-link (>=0). ----
     var targetTab by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
@@ -122,20 +145,45 @@ fun HomeScreen(navController: NavController) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // ---- Profiles tab state (preserved from the working version). ----
+    // ---- Profiles tab state ----
     val repo = remember { ProfilesRepository.getInstance(context) }
     val profiles = remember { mutableStateListOf<Profile>() }
+    var isLoadingProfiles by remember { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
-        val result = repo.fetchProfiles(limit = 100)
+    // Load profiles respecting gender, ordering, 24h limit & shuffling
+    LaunchedEffect(userGender, dailyLimitTimestamp) {
+        val limitTime = store.getDailyLimitTimestamp()
+        val now = System.currentTimeMillis()
+        val total24h = 24 * 60 * 60 * 1000L
+
+        if (limitTime > 0 && (now - limitTime) < total24h) {
+            dailyLimitTimestamp = limitTime
+            profiles.clear()
+            isLoadingProfiles = false
+            return@LaunchedEffect
+        }
+
+        val shouldShuffle = limitTime > 0 && (now - limitTime) >= total24h
+        if (shouldShuffle) {
+            store.clearDailyLimitTimestamp()
+            dailyLimitTimestamp = 0L
+        }
+
+        isLoadingProfiles = true
+        val result = repo.fetchProfiles(
+            userGender = userGender,
+            currentUserId = myUid,
+            shuffled = shouldShuffle,
+            limit = 100
+        )
         if (result.isSuccess) {
             profiles.clear()
-            // Only show profiles that have a real id and a name (skip half-created signup rows).
             profiles.addAll(
                 result.getOrDefault(emptyList())
                     .filter { it.id.isNotBlank() && it.name.isNotBlank() }
             )
         }
+        isLoadingProfiles = false
     }
 
     // ---- Chats tab state: interests-as-conversations + last-message previews. ----
@@ -335,8 +383,12 @@ fun HomeScreen(navController: NavController) {
             when (targetTab) {
                 0 -> ProfilesTab(
                     profiles = profiles,
+                    isLoading = isLoadingProfiles,
+                    dailyLimitTimestamp = dailyLimitTimestamp,
                     onProfileClick = { navController.navigate("profile/${it.id}") },
-                    onConnect = { profile ->
+                    onSwipeRight = { profile ->
+                        profiles.remove(profile)
+                        lastSwipedProfile = profile
                         if (AiBotConfig.isBot(profile.id)) {
                             val effectiveUid = myUid?.takeIf { it.isNotBlank() } ?: "user_local"
                             val convoId = BotMessageStore.conversationId(effectiveUid, profile.id)
@@ -353,9 +405,8 @@ fun HomeScreen(navController: NavController) {
                                     )
                                 )
                             }
-                            profiles.remove(profile)
                             scope.launch {
-                                snackbarHostState.showSnackbar("Connection sent")
+                                snackbarHostState.showSnackbar("Request Sent ✨")
                                 delay(600)
                                 NotificationUtils.showMessageNotification(
                                     context = context,
@@ -381,8 +432,7 @@ fun HomeScreen(navController: NavController) {
                                         )
                                         svc.sendInterest(body)
                                     }.onSuccess {
-                                        profiles.remove(profile)
-                                        snackbarHostState.showSnackbar("Connection sent")
+                                        snackbarHostState.showSnackbar("Request Sent ✨")
                                     }.onFailure {
                                         snackbarHostState.showSnackbar(it.message ?: "Failed to send connection")
                                     }
@@ -391,29 +441,51 @@ fun HomeScreen(navController: NavController) {
                                 navController.navigate("profile/${profile.id}")
                             }
                         }
+                        if (profiles.isEmpty()) {
+                            val now = System.currentTimeMillis()
+                            store.saveDailyLimitTimestamp(now)
+                            dailyLimitTimestamp = now
+                        }
                     },
-                    onSkip = { profile ->
-                        val index = profiles.indexOf(profile)
-                        if (index != -1) {
-                            profiles.removeAt(index)
-                            scope.launch {
-                                val result = snackbarHostState.showSnackbar(
-                                    message = "Rejected ${profile.name}",
-                                    actionLabel = "Undo",
-                                    withDismissAction = true,
-                                    duration = SnackbarDuration.Short
-                                )
-                                if (result == SnackbarResult.ActionPerformed) {
-                                    profiles.add(index.coerceAtMost(profiles.size), profile)
-                                }
+                    onSwipeLeft = { profile ->
+                        profiles.remove(profile)
+                        lastSwipedProfile = profile
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Rejected ${profile.name}",
+                                actionLabel = "Undo",
+                                withDismissAction = true,
+                                duration = SnackbarDuration.Short
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                profiles.add(0, profile)
+                                lastSwipedProfile = null
+                                store.clearDailyLimitTimestamp()
+                                dailyLimitTimestamp = 0L
                             }
                         }
-                    }
+                        if (profiles.isEmpty()) {
+                            val now = System.currentTimeMillis()
+                            store.saveDailyLimitTimestamp(now)
+                            dailyLimitTimestamp = now
+                        }
+                    },
+                    onUndo = {
+                        lastSwipedProfile?.let { restored ->
+                            profiles.add(0, restored)
+                            lastSwipedProfile = null
+                            store.clearDailyLimitTimestamp()
+                            dailyLimitTimestamp = 0L
+                        }
+                    },
+                    canUndo = lastSwipedProfile != null,
+                    onContinueChatting = { targetTab = 1 }
                 )
 
                 1 -> ChatsTab(
                     chats = chats,
                     myUid = myUid,
+                    userGender = userGender,
                     lastMessages = lastMessages,
                     onChatClick = { interest ->
                         val peer = peerOf(interest, myUid)
@@ -422,10 +494,8 @@ fun HomeScreen(navController: NavController) {
                             navController.navigate("chat/$convoId/$peer")
                         }
                     },
-                    onBotChatClick = { botId ->
-                        val effectiveUid = myUid?.takeIf { it.isNotBlank() } ?: "user_local"
-                        val convoId = BotMessageStore.conversationId(effectiveUid, botId)
-                        navController.navigate("chat/$convoId/$botId")
+                    onPeerChatClick = { convoId, peerId ->
+                        navController.navigate("chat/$convoId/$peerId")
                     }
                 )
 
@@ -477,24 +547,50 @@ private fun conversationIdFor(a: String?, b: String?): String {
 @Composable
 private fun ProfilesTab(
     profiles: SnapshotStateList<Profile>,
+    isLoading: Boolean,
+    dailyLimitTimestamp: Long,
     onProfileClick: (Profile) -> Unit,
-    onConnect: (Profile) -> Unit,
-    onSkip: (Profile) -> Unit
+    onSwipeLeft: (Profile) -> Unit,
+    onSwipeRight: (Profile) -> Unit,
+    onUndo: () -> Unit,
+    canUndo: Boolean,
+    onContinueChatting: () -> Unit
 ) {
-    if (profiles.isEmpty()) {
-        EmptyState("Finding potential matches...")
-        return
-    }
-    LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
-        items(profiles, key = { it.id }) { profile ->
-            ProfileCard(
-                profile = profile,
-                onViewDetailsClick = { onProfileClick(profile) },
-                onSkipClick = { onSkip(profile) },
-                modifier = Modifier.clickable { onProfileClick(profile) }
+    if (isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(
+                color = LuxuryRose,
+                modifier = Modifier.size(42.dp),
+                strokeWidth = 3.dp
             )
         }
+        return
     }
+
+    val total24h = 24 * 60 * 60 * 1000L
+    val isLimitActive = dailyLimitTimestamp > 0 &&
+        (System.currentTimeMillis() - dailyLimitTimestamp) < total24h
+
+    if (isLimitActive || profiles.isEmpty()) {
+        val effectiveLimitTime = if (dailyLimitTimestamp > 0) dailyLimitTimestamp else System.currentTimeMillis()
+        DailyLimitReachedScreen(
+            limitTimestamp = effectiveLimitTime,
+            onContinueChatting = onContinueChatting
+        )
+        return
+    }
+
+    SwipeableProfileDeck(
+        profiles = profiles,
+        onSwipeLeft = onSwipeLeft,
+        onSwipeRight = onSwipeRight,
+        onViewDetails = onProfileClick,
+        onUndo = onUndo,
+        canUndo = canUndo
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -502,19 +598,18 @@ private fun ProfilesTab(
 private fun ChatsTab(
     chats: SnapshotStateList<InterestDto>,
     myUid: String?,
+    userGender: String?,
     lastMessages: SnapshotStateMap<String, String>,
     onChatClick: (InterestDto) -> Unit,
-    onBotChatClick: (String) -> Unit
+    onPeerChatClick: (conversationId: String, peerId: String) -> Unit
 ) {
     val colors = com.blyndchat.ui.theme.LocalAppColors.current
     val effectiveUid = myUid?.takeIf { it.isNotBlank() } ?: "user_local"
-    val botConversations = AiBotConfig.ALL_BOT_IDS.filter { botId ->
-        BotMessageStore.hasConversation(BotMessageStore.conversationId(effectiveUid, botId))
-    }
+    val localConversations = BotMessageStore.conversationsFor(effectiveUid)
 
     LazyColumn(contentPadding = PaddingValues(16.dp)) {
-        // Top section: "Recent Matches" horizontal stories (only for connected profiles)
-        if (botConversations.isNotEmpty()) {
+        // Top section: "Recent Matches" horizontal stories
+        if (localConversations.isNotEmpty()) {
             item {
                 Column(modifier = Modifier.padding(bottom = 16.dp)) {
                     Text(
@@ -527,54 +622,57 @@ private fun ChatsTab(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        items(botConversations) { botId ->
-                            val botProfile = AiBotConfig.getBotProfile(botId)
-                        val firstName = botProfile?.name?.split(" ")?.firstOrNull() ?: "AI"
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { onBotChatClick(botId) }
-                                .padding(4.dp)
-                        ) {
-                            Box(
+                        items(localConversations) { convoId ->
+                            val peerId = convoId.split("_").firstOrNull { it != effectiveUid } ?: ""
+                            val peerProfile = AiBotConfig.getBotProfile(peerId, userGender)
+                                ?: SeedProfiles.getProfileById(peerId)
+                            val firstName = peerProfile?.name?.split(" ")?.firstOrNull() ?: "Match"
+
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
-                                    .size(62.dp)
-                                    .border(
-                                        width = 2.dp,
-                                        brush = Brush.sweepGradient(
-                                            listOf(
-                                                LuxuryGold,
-                                                LuxuryRose,
-                                                Color(0xFF9D4EDD),
-                                                LuxuryGold
-                                            )
-                                        ),
-                                        shape = CircleShape
-                                    )
-                                    .padding(3.dp)
-                                    .clip(CircleShape)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { onPeerChatClick(convoId, peerId) }
+                                    .padding(4.dp)
                             ) {
-                                AsyncImage(
-                                    model = botProfile?.imageUrl ?: "",
-                                    contentDescription = firstName,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
+                                Box(
+                                    modifier = Modifier
+                                        .size(62.dp)
+                                        .border(
+                                            width = 2.dp,
+                                            brush = Brush.sweepGradient(
+                                                listOf(
+                                                    LuxuryGold,
+                                                    LuxuryRose,
+                                                    Color(0xFF9D4EDD),
+                                                    LuxuryGold
+                                                )
+                                            ),
+                                            shape = CircleShape
+                                        )
+                                        .padding(3.dp)
+                                        .clip(CircleShape)
+                                ) {
+                                    AsyncImage(
+                                        model = peerProfile?.imageUrl ?: "",
+                                        contentDescription = firstName,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = firstName,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.textPrimary
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = firstName,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textPrimary
-                        )
                     }
                 }
             }
         }
-    }
 
         item {
             Text(
@@ -588,7 +686,7 @@ private fun ChatsTab(
             )
         }
 
-        if (chats.isEmpty() && botConversations.isEmpty()) {
+        if (chats.isEmpty() && localConversations.isEmpty()) {
             item {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
@@ -621,15 +719,17 @@ private fun ChatsTab(
                 }
             }
         } else {
-            // Bot conversations
-            items(botConversations, key = { "bot_$it" }) { botId ->
-                val botProfile = AiBotConfig.getBotProfile(botId)
-                val convoId = BotMessageStore.conversationId(effectiveUid, botId)
+            // Local bot / seed conversations
+            items(localConversations, key = { "local_$it" }) { convoId ->
+                val peerId = convoId.split("_").firstOrNull { it != effectiveUid } ?: ""
+                val peerProfile = AiBotConfig.getBotProfile(peerId, userGender)
+                    ?: SeedProfiles.getProfileById(peerId)
+                val isAi = AiBotConfig.isAiModel(peerId)
                 val lastMsg = BotMessageStore.lastMessage(convoId)
                 val preview = lastMsg?.content ?: "Tap to chat"
 
                 Card(
-                    onClick = { onBotChatClick(botId) },
+                    onClick = { onPeerChatClick(convoId, peerId) },
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = colors.cardContainer),
                     border = androidx.compose.foundation.BorderStroke(1.dp, colors.cardBorderSubtle),
@@ -650,8 +750,8 @@ private fun ChatsTab(
                                 .clip(CircleShape)
                         ) {
                             AsyncImage(
-                                model = botProfile?.imageUrl ?: "",
-                                contentDescription = botProfile?.name,
+                                model = peerProfile?.imageUrl ?: "",
+                                contentDescription = peerProfile?.name,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
                             )
@@ -670,22 +770,24 @@ private fun ChatsTab(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Text(
-                                        text = botProfile?.name ?: "AI",
+                                        text = peerProfile?.name ?: "Chat",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp,
                                         color = colors.textPrimary
                                     )
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = if (colors.isDark) Color(0x22FFD700) else Color(0x20D64978)
-                                    ) {
-                                        Text(
-                                            text = "AI",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (colors.isDark) LuxuryGold else Color(0xFF9A2D55),
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                        )
+                                    if (isAi) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = if (colors.isDark) Color(0x22FFD700) else Color(0x20D64978)
+                                        ) {
+                                            Text(
+                                                text = "AI",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (colors.isDark) LuxuryGold else Color(0xFF9A2D55),
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
                                     }
                                 }
                                 Text(
@@ -710,7 +812,7 @@ private fun ChatsTab(
                 }
             }
 
-            // Real chats
+            // Real chats from Supabase
             items(chats, key = { it.id ?: (it.senderId + it.receiverId) }) { interest ->
                 val peer = peerOf(interest, myUid)
                 val convoId = conversationIdFor(myUid, peer)
@@ -744,15 +846,29 @@ private fun ChatsTab(
                         Spacer(modifier = Modifier.width(12.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = peer.ifBlank { "User" },
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                color = colors.textPrimary
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "Connected Match",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = colors.textPrimary
+                                )
+                                Text(
+                                    text = "Chat",
+                                    fontSize = 11.sp,
+                                    color = if (colors.isDark) LuxuryGold else Color(0xFF9A2D55)
+                                )
+                            }
+
                             Spacer(modifier = Modifier.height(4.dp))
+
                             Text(
                                 text = preview,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = colors.textSecondary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
