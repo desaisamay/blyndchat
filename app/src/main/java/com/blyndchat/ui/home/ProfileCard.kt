@@ -81,29 +81,6 @@ fun ProfileCard(
                     contentScale = ContentScale.Crop
                 )
 
-                // Top Floating Badge
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = colors.badgeBackground,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.badgeBorder),
-                    modifier = Modifier
-                        .padding(14.dp)
-                        .align(Alignment.TopStart)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text("✨", fontSize = 12.sp)
-                        Text(
-                            text = "AI Verified",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (colors.isDark) LuxuryGold else Color(0xFF942852)
-                        )
-                    }
-                }
 
                 // Smooth Scrim at bottom of photo
                 Box(

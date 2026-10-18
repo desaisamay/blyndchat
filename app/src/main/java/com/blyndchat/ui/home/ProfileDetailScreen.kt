@@ -112,29 +112,6 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
                     contentScale = ContentScale.Crop
                 )
 
-                // Top Badge
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = colors.badgeBackground,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.badgeBorder),
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .align(Alignment.TopStart)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text("✨", fontSize = 12.sp)
-                        Text(
-                            text = if (AiBotConfig.isBot(profileId)) "AI Verified" else "Verified Profile",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (colors.isDark) LuxuryGold else Color(0xFF942852)
-                        )
-                    }
-                }
 
                 // Bottom gradient fade
                 Box(
