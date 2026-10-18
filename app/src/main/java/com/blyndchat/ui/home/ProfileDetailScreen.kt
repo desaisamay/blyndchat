@@ -40,7 +40,7 @@ import com.blyndchat.util.JwtUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ProfileDetailScreen(navController: NavController, profileId: String?) {
     val repo = remember { ProfilesRepository.getInstance(navController.context) }
@@ -206,6 +206,81 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
 
                     Spacer(modifier = Modifier.height(20.dp))
 
+                    fun show(value: String?): String = if (value.isNullOrBlank()) "—" else value
+
+                    // Chat Preferences & Vibe Section
+                    Text(
+                        text = "Chat Preferences & Vibe",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = colors.textPrimary
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DetailTile(label = "Looking For", value = show(p.lookingFor), icon = "🎯", modifier = Modifier.weight(1f))
+                        DetailTile(label = "Personality", value = show(p.personalityType), icon = "🧠", modifier = Modifier.weight(1f))
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DetailTile(label = "Intensity", value = show(p.conversationIntensity), icon = "⚡", modifier = Modifier.weight(1f))
+                        DetailTile(label = "Partner Age", value = show(p.preferredAgeRange), icon = "👥", modifier = Modifier.weight(1f))
+                    }
+
+                    // Preferred Topics
+                    if (!p.preferredTopics.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(18.dp))
+                        Text(
+                            text = "Preferred Topics",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = colors.textPrimary
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            p.preferredTopics.split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach { topic ->
+                                TopicBadge(text = topic, isAvoided = false)
+                            }
+                        }
+                    }
+
+                    // Topics to Avoid
+                    if (!p.avoidedTopics.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(18.dp))
+                        Text(
+                            text = "Topics to Avoid",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = colors.textPrimary
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            p.avoidedTopics.split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach { topic ->
+                                TopicBadge(text = topic, isAvoided = true)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
                     // Personal Details Grid
                     Text(
                         text = "Personal Details",
@@ -216,8 +291,6 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
-
-                    fun show(value: String?): String = if (value.isNullOrBlank()) "—" else value
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -231,24 +304,18 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        DetailTile(label = "Religion", value = show(p.religion), icon = "🕉️", modifier = Modifier.weight(1f))
-                        DetailTile(label = "Caste", value = show(p.caste), icon = "🏷️", modifier = Modifier.weight(1f))
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
                         DetailTile(label = "Profession", value = show(p.profession), icon = "💼", modifier = Modifier.weight(1f))
                         DetailTile(label = "Location", value = show(p.location), icon = "📍", modifier = Modifier.weight(1f))
                     }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        DetailTile(label = "Annual Income", value = show(p.annualIncome), icon = "💰", modifier = Modifier.weight(1f))
-                        DetailTile(label = "Gender", value = show(p.gender), icon = "👤", modifier = Modifier.weight(1f))
+                    if (!p.gender.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            DetailTile(label = "Gender", value = show(p.gender), icon = "👤", modifier = Modifier.weight(0.5f))
+                            Spacer(modifier = Modifier.weight(0.5f))
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -399,6 +466,45 @@ private fun DetailTile(label: String, value: String, icon: String, modifier: Mod
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = colors.detailTileValue
+            )
+        }
+    }
+}
+
+@Composable
+private fun TopicBadge(text: String, isAvoided: Boolean = false) {
+    val colors = com.blyndchat.ui.theme.LocalAppColors.current
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = if (isAvoided) {
+            if (colors.isDark) Color(0x33FF4D4F) else Color(0x18D9363E)
+        } else {
+            colors.detailTileContainer
+        },
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isAvoided) {
+                if (colors.isDark) Color(0x66FF4D4F) else Color(0x40D9363E)
+            } else {
+                colors.detailTileBorder
+            }
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(if (isAvoided) "🚫" else "💬", fontSize = 12.sp)
+            Text(
+                text = text,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isAvoided) {
+                    if (colors.isDark) Color(0xFFFF7875) else Color(0xFFCF1322)
+                } else {
+                    colors.textPrimary
+                }
             )
         }
     }

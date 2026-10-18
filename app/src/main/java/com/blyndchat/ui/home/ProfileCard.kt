@@ -164,12 +164,13 @@ fun ProfileCard(
                     if (profile.height.isNotBlank()) {
                         TraitChip(text = "📏 ${profile.height}")
                     }
-                    if (profile.religion.isNotBlank()) {
-                        val relText = if (!profile.caste.isNullOrBlank()) "${profile.religion} • ${profile.caste}" else profile.religion
-                        TraitChip(text = "🕉️ $relText")
+                    if (!profile.lookingFor.isNullOrBlank()) {
+                        TraitChip(text = "🎯 ${profile.lookingFor}")
                     }
-                    if (!profile.annualIncome.isNullOrBlank()) {
-                        TraitChip(text = "💰 ${profile.annualIncome}")
+                    if (!profile.personalityType.isNullOrBlank()) {
+                        TraitChip(text = "🧠 ${profile.personalityType}")
+                    } else if (!profile.conversationIntensity.isNullOrBlank()) {
+                        TraitChip(text = "⚡ ${profile.conversationIntensity}")
                     }
                 }
 

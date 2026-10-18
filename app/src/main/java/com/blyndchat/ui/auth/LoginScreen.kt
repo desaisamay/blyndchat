@@ -162,6 +162,26 @@ fun LoginScreen(navController: NavController) {
                                         }
                                     }
 
+                                    val pendingHeight = store.getPendingHeight()
+                                    val pendingProfession = store.getPendingProfession()
+                                    val pendingBio = store.getPendingBio() ?: ""
+                                    val pendingLookingFor = store.getPendingLookingFor()
+                                    val pendingAgeRange = store.getPendingPreferredAgeRange()
+                                    val pendingTopics = store.getPendingPreferredTopics()
+                                    val pendingPersonality = store.getPendingPersonalityType()
+                                    val pendingIntensity = store.getPendingConversationIntensity()
+                                    val pendingAvoided = store.getPendingAvoidedTopics()
+
+                                    val encodedAbout = com.blyndchat.data.model.ProfileMetadataParser.encode(
+                                        bio = pendingBio,
+                                        lookingFor = pendingLookingFor,
+                                        preferredAgeRange = pendingAgeRange,
+                                        preferredTopics = pendingTopics,
+                                        personalityType = pendingPersonality,
+                                        conversationIntensity = pendingIntensity,
+                                        avoidedTopics = pendingAvoided
+                                    )
+
                                     val upsertResult = runCatching {
                                         val retrofit = SupabaseRestApiClient.authedRetrofit(token)
                                         val service = retrofit.create(ProfilesService::class.java)
@@ -171,7 +191,10 @@ fun LoginScreen(navController: NavController) {
                                                 name = pendingName,
                                                 age = pendingAge,
                                                 gender = pendingGender,
-                                                imageUrl = avatarUrl
+                                                height = pendingHeight,
+                                                profession = pendingProfession,
+                                                imageUrl = avatarUrl,
+                                                about = encodedAbout
                                             )
                                         )
                                         service.upsertProfiles(body)

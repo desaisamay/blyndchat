@@ -18,22 +18,31 @@ class ProfilesRepository private constructor() {
         return Result.success(AiBotConfig.BOT_PROFILES + realProfiles)
     }
 
-    private fun ProfileDto.toDomain(): Profile = Profile(
-        id = this.id ?: "",
-        name = this.name ?: "",
-        age = this.age ?: 0,
-        height = this.height ?: "",
-        religion = this.religion ?: "",
-        caste = this.caste ?: "",
-        profession = this.profession ?: "",
-        location = this.location ?: "",
-        imageUrl = this.imageUrl ?: "",
-        about = this.about ?: "",
-        gender = this.gender,
-        annualIncome = this.annualIncome,
-        phoneNumber = this.phoneNumber,
-        createdAt = this.createdAt
-    )
+    private fun ProfileDto.toDomain(): Profile {
+        val parsed = com.blyndchat.data.model.ProfileMetadataParser.parse(this.about)
+        return Profile(
+            id = this.id ?: "",
+            name = this.name ?: "",
+            age = this.age ?: 0,
+            height = this.height ?: "",
+            religion = this.religion ?: "",
+            caste = this.caste ?: "",
+            profession = this.profession ?: "",
+            location = this.location ?: "",
+            imageUrl = this.imageUrl ?: "",
+            about = parsed.bio.ifBlank { this.about ?: "" },
+            gender = this.gender,
+            annualIncome = this.annualIncome,
+            phoneNumber = this.phoneNumber,
+            createdAt = this.createdAt,
+            lookingFor = parsed.lookingFor,
+            preferredAgeRange = parsed.preferredAgeRange,
+            preferredTopics = parsed.preferredTopics,
+            personalityType = parsed.personalityType,
+            conversationIntensity = parsed.conversationIntensity,
+            avoidedTopics = parsed.avoidedTopics
+        )
+    }
 
     companion object {
         @Volatile private var instance: ProfilesRepository? = null
