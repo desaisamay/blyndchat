@@ -516,7 +516,7 @@ private fun ProfilesTab(
         items(profiles, key = { it.id }) { profile ->
             ProfileCard(
                 profile = profile,
-                onConnectClick = { onConnect(profile) },
+                onViewDetailsClick = { onProfileClick(profile) },
                 onSkipClick = { onSkip(profile) },
                 modifier = Modifier.clickable { onProfileClick(profile) }
             )

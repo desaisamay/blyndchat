@@ -35,7 +35,7 @@ import com.blyndchat.ui.theme.LuxuryRose
 @Composable
 fun ProfileCard(
     profile: Profile,
-    onConnectClick: () -> Unit,
+    onViewDetailsClick: () -> Unit,
     onSkipClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -230,9 +230,9 @@ fun ProfileCard(
                         )
                     }
 
-                    // Connect Now ✨ Button
+                    // View Details ✨ Button
                     Button(
-                        onClick = onConnectClick,
+                        onClick = onViewDetailsClick,
                         shape = RoundedCornerShape(26.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                         contentPadding = PaddingValues(0.dp),
@@ -261,7 +261,7 @@ fun ProfileCard(
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Text(
-                                text = "Connect Now ✨",
+                                text = "View Details ✨",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp,
