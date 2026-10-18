@@ -81,59 +81,27 @@ fun ProfileCard(
                     contentScale = ContentScale.Crop
                 )
 
-                // Top Floating Badges
-                Row(
+                // Top Floating Badge
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = colors.badgeBackground,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.badgeBorder),
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(14.dp)
+                        .align(Alignment.TopStart)
                 ) {
-                    // Left: AI / Verified Badge
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = colors.badgeBackground,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, colors.badgeBorder)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text("✨", fontSize = 12.sp)
-                            Text(
-                                text = "AI Verified",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (colors.isDark) LuxuryGold else Color(0xFF942852)
-                            )
-                        }
-                    }
-
-                    // Right: Online Indicator Badge
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = colors.badgeBackground,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (colors.isDark) LuxuryEmerald.copy(alpha = 0.6f) else Color(0x6600B865))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(if (colors.isDark) LuxuryEmerald else Color(0xFF00A859))
-                            )
-                            Text(
-                                text = "Online",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (colors.isDark) LuxuryEmerald else Color(0xFF008A4B)
-                            )
-                        }
+                        Text("✨", fontSize = 12.sp)
+                        Text(
+                            text = "AI Verified",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (colors.isDark) LuxuryGold else Color(0xFF942852)
+                        )
                     }
                 }
 

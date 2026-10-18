@@ -283,33 +283,6 @@ fun HomeScreen(navController: NavController) {
                         }
                     }
                 },
-                actions = {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (colors.isDark) Color(0x2200FF7F) else Color(0x1800B865),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (colors.isDark) Color(0x5500FF7F) else Color(0x4000B865))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(if (colors.isDark) LuxuryEmerald else Color(0xFF00A859))
-                            )
-                            Text(
-                                text = "3 Online",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (colors.isDark) LuxuryEmerald else Color(0xFF008A4B)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = colors.topBarContainer
                 )
@@ -588,17 +561,6 @@ private fun ChatsTab(
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop
                                 )
-                                // Online dot
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .align(Alignment.BottomEnd)
-                                        .clip(CircleShape)
-                                        .background(colors.cardContainer)
-                                        .padding(2.dp)
-                                        .clip(CircleShape)
-                                        .background(LuxuryEmerald)
-                                )
                             }
                         }
                         Spacer(modifier = Modifier.height(4.dp))
@@ -681,7 +643,7 @@ private fun ChatsTab(
                             .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Avatar with online dot
+                        // Avatar
                         Box(
                             modifier = Modifier
                                 .size(50.dp)
@@ -692,16 +654,6 @@ private fun ChatsTab(
                                 contentDescription = botProfile?.name,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(12.dp)
-                                    .align(Alignment.BottomEnd)
-                                    .clip(CircleShape)
-                                    .background(colors.cardContainer)
-                                    .padding(2.dp)
-                                    .clip(CircleShape)
-                                    .background(LuxuryEmerald)
                             )
                         }
 

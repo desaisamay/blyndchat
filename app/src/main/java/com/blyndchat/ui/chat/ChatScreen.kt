@@ -193,32 +193,13 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                                     }
                                 }
                             }
-                            if (isBotChat) {
-                                if (isTyping.value) {
-                                    Text(
-                                        "typing...",
-                                        fontSize = 11.sp,
-                                        color = if (colors.isDark) LuxuryEmerald else Color(0xFF008A4B),
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                } else {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(6.dp)
-                                                .clip(CircleShape)
-                                                .background(if (colors.isDark) LuxuryEmerald else Color(0xFF00A859))
-                                        )
-                                        Text(
-                                            "online",
-                                            fontSize = 11.sp,
-                                            color = if (colors.isDark) LuxuryEmerald else Color(0xFF008A4B)
-                                        )
-                                    }
-                                }
+                            if (isBotChat && isTyping.value) {
+                                Text(
+                                    "typing...",
+                                    fontSize = 11.sp,
+                                    color = if (colors.isDark) LuxuryEmerald else Color(0xFF008A4B),
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     }
