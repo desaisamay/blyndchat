@@ -55,11 +55,11 @@ object BotReplyScheduler {
                 // Third bot: replies after every 1 to 3 minutes (60s to 180s)
                 val totalMs = Random.nextLong(60_000L, 180_001L)
                 val typingMs = 3_500L
-                Pair((totalMs - typingMs).coerceAtLeast(0L), typingMs)
+                Pair((totalMs - typingMs).coerceAtLeast(10_000L), typingMs)
             }
             else -> {
-                // Seed profiles / fallback: quick casual response
-                Pair(3_000L, 2_000L)
+                // Fallback / seed profiles: never start typing immediately, wait 10 seconds
+                Pair(10_000L, 2_500L)
             }
         }
     }
@@ -80,7 +80,9 @@ object BotReplyScheduler {
         activeJobs[conversationId]?.cancel()
 
         val appContext = context.applicationContext
-        val (preTypingDelay, typingDuration) = customTiming ?: getTimingConfig(botId)
+        val (rawPreTyping, typingDuration) = customTiming ?: getTimingConfig(botId)
+        // Never start typing immediately: always wait at least 10 seconds before typing
+        val preTypingDelay = if (customTiming != null) rawPreTyping else rawPreTyping.coerceAtLeast(10_000L)
 
         val job = scope.launch {
             try {

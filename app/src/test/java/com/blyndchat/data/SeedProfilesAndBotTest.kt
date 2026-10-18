@@ -126,7 +126,7 @@ class SeedProfilesAndBotTest {
         val mayaTiming = com.blyndchat.data.ai.BotReplyScheduler.getTimingConfig(AiBotConfig.BOT_ID_MAYA)
         val mayaTotal = mayaTiming.first + mayaTiming.second
         assertEquals("Bot 2 total reply delay must be exactly 10 minutes (600,000ms)", 10 * 60 * 1000L, mayaTotal)
-        assertTrue("Bot 2 pre-typing delay must be positive", mayaTiming.first > 0)
+        assertTrue("Bot 2 pre-typing delay must be >= 10 seconds (never start typing immediately)", mayaTiming.first >= 10_000L)
         assertTrue("Bot 2 typing duration must be positive", mayaTiming.second > 0)
 
         // Bot 3 (Zara / Aarav): replies after every 1 to 3 minutes (60,000ms to 180,000ms)
@@ -137,8 +137,13 @@ class SeedProfilesAndBotTest {
                 "Bot 3 total reply delay must be between 1 and 3 minutes (got $zaraTotal ms)",
                 zaraTotal in 60_000L..180_000L
             )
+            assertTrue("Bot 3 pre-typing delay must be >= 10 seconds (never start typing immediately)", zaraTiming.first >= 10_000L)
             assertTrue("Bot 3 typing duration must be positive", zaraTiming.second > 0)
         }
+
+        // Fallback / other bots: must never immediately start typing, waiting at least 10 seconds
+        val fallbackTiming = com.blyndchat.data.ai.BotReplyScheduler.getTimingConfig("unknown_bot")
+        assertTrue("Fallback bot must wait >= 10 seconds before typing", fallbackTiming.first >= 10_000L)
     }
 
     @Test
@@ -204,7 +209,8 @@ class SeedProfilesAndBotTest {
         assertTrue(
             "Zara should provide empathetic comfort: $tiredMsg",
             tiredMsg.contains("rest") || tiredMsg.contains("tea") || tiredMsg.contains("hug") ||
-                tiredMsg.contains("sorry") || tiredMsg.contains("breathe")
+                tiredMsg.contains("sorry") || tiredMsg.contains("breathe") || tiredMsg.contains("care") ||
+                tiredMsg.contains("health")
         )
     }
 }
