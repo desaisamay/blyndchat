@@ -61,6 +61,7 @@ import coil.compose.AsyncImage
 import com.blyndchat.data.ai.AiBotConfig
 import com.blyndchat.data.ai.AiBotEngine
 import com.blyndchat.data.ai.BotMessageStore
+import com.blyndchat.data.ai.BotReplyScheduler
 import com.blyndchat.data.ai.GeminiChatService
 import com.blyndchat.data.auth.CredentialStore
 import com.blyndchat.data.profile.SeedProfiles
@@ -84,9 +85,9 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val store = remember { CredentialStore(navController.context.applicationContext) }
-    val messages = remember { mutableStateListOf<MessageDto>() }
+    val remoteMessages = remember { mutableStateListOf<MessageDto>() }
     val input = remember { mutableStateOf("") }
-    val isTyping = remember { mutableStateOf(false) }
+    val localTyping = remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     val token = store.getToken()
@@ -98,6 +99,21 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
     val botProfile = peerId?.let { AiBotConfig.getBotProfile(it, userGender) }
         ?: peerId?.let { SeedProfiles.getProfileById(it) }
     val chatTitle = botProfile?.name ?: "Chat"
+
+    // For bot chats, directly observe the SnapshotStateList from BotMessageStore
+    // so background additions by BotReplyScheduler automatically trigger recomposition.
+    val displayedMessages: List<MessageDto> = if (isBotChat && !conversationId.isNullOrBlank()) {
+        BotMessageStore.getObservableMessages(conversationId)
+    } else {
+        remoteMessages
+    }
+
+    // Observe typing state reactively from BotMessageStore for bot chats
+    val isCurrentlyTyping = if (isBotChat && !conversationId.isNullOrBlank()) {
+        BotMessageStore.isTyping(conversationId)
+    } else {
+        localTyping.value
+    }
 
     // Load messages
     LaunchedEffect(conversationId, token) {
@@ -119,8 +135,6 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                     )
                 )
             }
-            messages.clear()
-            messages.addAll(BotMessageStore.getMessages(conversationId))
         } else {
             if (token.isNullOrBlank()) {
                 snackbarHostState.showSnackbar("Missing chat context")
@@ -132,7 +146,8 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                     val svc = retrofit.create(MessagesService::class.java)
                     svc.getMessages(conversationIdEq = "eq.$conversationId")
                 }.onSuccess {
-                    messages.clear(); messages.addAll(it)
+                    remoteMessages.clear()
+                    remoteMessages.addAll(it)
                 }.onFailure {
                     snackbarHostState.showSnackbar(it.message ?: "Failed to load messages")
                 }
@@ -141,9 +156,9 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
     }
 
     // Auto-scroll to bottom when messages change or typing starts
-    LaunchedEffect(messages.size, isTyping.value) {
-        if (messages.isNotEmpty()) {
-            val target = (messages.size - 1 + if (isTyping.value) 1 else 0).coerceAtLeast(0)
+    LaunchedEffect(displayedMessages.size, isCurrentlyTyping) {
+        if (displayedMessages.isNotEmpty()) {
+            val target = (displayedMessages.size - 1 + if (isCurrentlyTyping) 1 else 0).coerceAtLeast(0)
             listState.animateScrollToItem(target)
         }
     }
@@ -196,7 +211,7 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                                     }
                                 }
                             }
-                            if (isBotChat && isTyping.value) {
+                            if (isBotChat && isCurrentlyTyping) {
                                 Text(
                                     "typing...",
                                     fontSize = 11.sp,
@@ -232,13 +247,13 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                items(messages, key = { it.id ?: it.createdAt ?: (it.content + it.senderId) }) { msg ->
+                items(displayedMessages, key = { it.id ?: it.createdAt ?: (it.content + it.senderId) }) { msg ->
                     val isMine = if (isBotChat) msg.senderId != peerId else (msg.senderId == myId)
                     MessageBubble(message = msg, isMine = isMine)
                 }
 
                 // Typing indicator
-                if (isTyping.value) {
+                if (isCurrentlyTyping) {
                     item {
                         Row(
                             modifier = Modifier
@@ -339,44 +354,19 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                                         createdAt = BotMessageStore.nowTimestamp()
                                     )
                                     BotMessageStore.addMessage(convo, userMsg)
-                                    messages.add(userMsg)
                                     input.value = ""
 
-                                    val startTime = System.currentTimeMillis()
-                                    // Natural 1.5s reading pause before typing begins
-                                    delay(1500L)
-                                    isTyping.value = true
-
-                                    val reply = GeminiChatService.generateReply(
-                                        botId = other,
-                                        userMessage = text,
-                                        messagesHistory = messages.toList()
-                                    )
-
-                                    // Maintain 10 seconds total delay before reply is posted
-                                    val elapsed = System.currentTimeMillis() - startTime
-                                    val remainingDelay = (10_000L - elapsed).coerceAtLeast(500L)
-                                    delay(remainingDelay)
-                                    isTyping.value = false
-
-                                    val botMsg = MessageDto(
-                                        id = "bot_${System.currentTimeMillis()}",
-                                        conversationId = convo,
-                                        senderId = other,
-                                        receiverId = me,
-                                        content = reply,
-                                        createdAt = BotMessageStore.nowTimestamp()
-                                    )
-                                    BotMessageStore.addMessage(convo, botMsg)
-                                    messages.add(botMsg)
-
-                                    // Show system notification for the incoming message
-                                    NotificationUtils.showMessageNotification(
+                                    // Schedule bot reply according to individual persona timing rules:
+                                    // - Bot 1 (Aria/Kabir): Persona "as is", starts typing after 10s
+                                    // - Bot 2 (Maya/Rohan): Persona "a bit casual", replies after 10 minutes
+                                    // - Bot 3 (Zara/Aarav): Persona "caring", replies after 1 to 3 minutes
+                                    BotReplyScheduler.scheduleReply(
                                         context = context,
                                         conversationId = convo,
-                                        peerId = other,
-                                        title = chatTitle,
-                                        body = reply
+                                        botId = other,
+                                        userMessage = text,
+                                        chatTitle = chatTitle,
+                                        receiverId = me
                                     )
                                 } else {
                                     runCatching {
@@ -402,7 +392,7 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                                                 content = text,
                                                 createdAt = null
                                             )
-                                            messages.add(created)
+                                            remoteMessages.add(created)
                                             input.value = ""
                                         } else {
                                             val err = try { resp.errorBody()?.string() } catch (_: Exception) { null }

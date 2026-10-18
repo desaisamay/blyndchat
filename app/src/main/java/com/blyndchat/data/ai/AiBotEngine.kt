@@ -56,7 +56,7 @@ object AiBotEngine {
     fun getGreeting(botId: String): String = "hi"
 
     // =========================================================================
-    // MAIN RESPONSE GENERATOR (Uninterested, dry dating app chatter)
+    // MAIN RESPONSE GENERATOR (Persona-driven: Aria = as is, Maya = casual, Zara = caring)
     // =========================================================================
 
     fun generateReply(
@@ -67,86 +67,272 @@ object AiBotEngine {
     ): String {
         val lower = userMessage.trim().lowercase()
 
-        // 1. Greetings
-        if (lower == "hi" || lower == "hey" || lower == "hello" || lower == "yo" || lower == "sup" || lower == "heyy" || lower == "hii") {
+        return when (botId) {
+            AiBotConfig.BOT_ID_ARIA -> generateAriaDryReply(botId, lower)
+            AiBotConfig.BOT_ID_MAYA -> generateMayaCasualReply(botId, lower)
+            AiBotConfig.BOT_ID_ZARA -> generateZaraCaringReply(botId, lower)
+            else -> generateCasualSeedReply(botId, lower)
+        }
+    }
+
+    /**
+     * Bot 1 (Aria / Kabir): Persona "as is"
+     * Uninterested, dry, low-effort dating app chatter. 1-5 words max, lowercase.
+     */
+    private fun generateAriaDryReply(botId: String, lower: String): String {
+        if (lower in listOf("hi", "hey", "hello", "yo", "sup", "heyy", "hii")) {
             return pickFresh(botId, listOf("hey", "sup", "hi", "yo"))
         }
 
-        // 2. Status / what's up / wyd / how are you
         if (lower.contains("how are") || lower.contains("what's up") || lower.contains("whats up") ||
             lower.contains("wassup") || lower.contains("wyd") || lower.contains("doing") || lower.contains("hru")) {
             return pickFresh(botId, listOf("nm", "nothing much", "fine", "tired", "wbu", "working", "just chilling"))
         }
 
-        // 3. Location / where do you live
-        if (lower.contains("where") && (lower.contains("live") || lower.contains("from") || lower.contains("stay") || lower.contains("you at"))) {
-            return when (botId) {
-                AiBotConfig.BOT_ID_ARIA -> "bangalore"
-                AiBotConfig.BOT_ID_MAYA -> "hyderabad"
-                AiBotConfig.BOT_ID_ZARA -> "mumbai"
-                else -> "here"
-            }
+        if ((lower.contains("where") || lower.contains("city") || lower.contains("location")) &&
+            (lower.contains("live") || lower.contains("from") || lower.contains("stay") || lower.contains("you at") || lower.contains("based"))) {
+            return "bangalore"
         }
 
-        // 4. Job / profession
         if (lower.contains("work") || lower.contains("job") || lower.contains("do you do") || lower.contains("profession")) {
-            return when (botId) {
-                AiBotConfig.BOT_ID_ARIA -> "ux design"
-                AiBotConfig.BOT_ID_MAYA -> "software dev"
-                AiBotConfig.BOT_ID_ZARA -> "architecture"
-                else -> "work"
-            }
+            return "ux design"
         }
 
-        // 5. Compliments
         if (lower.contains("cute") || lower.contains("pretty") || lower.contains("beautiful") ||
             lower.contains("nice") || lower.contains("hot") || lower.contains("gorgeous") || lower.contains("love your")) {
             return pickFresh(botId, listOf("thanks", "thx", "cool", "ty", "haha ok"))
         }
 
-        // 6. Accusations of being dry / uninterested / bot
         if (lower.contains("dry") || lower.contains("boring") || lower.contains("bored") ||
             lower.contains("uninterested") || lower.contains("bot") || lower.contains("ai") || lower.contains("rude")) {
             return pickFresh(botId, listOf("im not dry", "just tired", "nah", "busy rn", "what", "lol no"))
         }
 
-        // 7. Meeting up / date / number / insta / contact
         if (lower.contains("meet") || lower.contains("date") || lower.contains("number") ||
             lower.contains("insta") || lower.contains("hangout") || lower.contains("coffee")) {
             return pickFresh(botId, listOf("idk maybe", "busy this week", "nah not yet", "idk", "too soon"))
         }
 
-        // 8. Why questions
         if (lower.startsWith("why") || lower.endsWith("why?")) {
             return pickFresh(botId, listOf("just because", "idk", "no reason", "why not"))
         }
 
-        // 9. Short acknowledgements
         if (lower.length <= 5) {
             return pickFresh(botId, listOf("k", "cool", "yeah", "hmm", "ok", "oh", "wbu"))
         }
 
-        // 10. General uninterested fallback pool
-        val uninterestedReplies = listOf(
-            "k",
-            "cool",
-            "yeah",
-            "nothing much",
-            "wbu",
-            "hmm",
-            "ok",
-            "fine",
-            "idk",
-            "why",
-            "nah",
-            "sure",
-            "lol ok",
-            "working rn",
-            "busy",
-            "oh",
-            "right"
-        )
-        return pickFresh(botId, uninterestedReplies)
+        return pickFresh(botId, listOf(
+            "k", "cool", "yeah", "nothing much", "wbu", "hmm", "ok",
+            "fine", "idk", "why", "nah", "sure", "lol ok", "working rn", "busy", "oh", "right"
+        ))
+    }
+
+    /**
+     * Bot 2 (Maya / Rohan): Persona "a bit casual"
+     * Chill, relaxed, conversational slang, friendly banter (1-2 sentences).
+     */
+    private fun generateMayaCasualReply(botId: String, lower: String): String {
+        if (lower in listOf("hi", "hey", "hello", "yo", "sup", "heyy", "hii", "hey there", "hola")) {
+            return pickFresh(botId, listOf(
+                "Hey! What's up? 😄",
+                "Ayy! How's your day going so far?",
+                "Yo! What are you up to today?",
+                "Hey hey! Good to see you here ✨"
+            ))
+        }
+
+        if (lower.contains("how are") || lower.contains("what's up") || lower.contains("whats up") ||
+            lower.contains("wassup") || lower.contains("wyd") || lower.contains("doing") || lower.contains("hru")) {
+            return pickFresh(botId, listOf(
+                "Just chilling with some music, what about you?",
+                "Honestly just winding down after work! Wyd?",
+                "Not much honestly, just browsing around. How's your week been?",
+                "Working on a few things, pretty chill day though! What are you doing?",
+                "Taking a quick break and checking the app haha! How are you?"
+            ))
+        }
+
+        if ((lower.contains("where") || lower.contains("city") || lower.contains("location")) &&
+            (lower.contains("live") || lower.contains("from") || lower.contains("stay") || lower.contains("city") || lower.contains("based"))) {
+            return pickFresh(botId, listOf(
+                "Based in Hyderabad! Pretty chill city, love the food and cafes here. Where are you from?",
+                "Hyderabad! Near Hitec City. Have you ever visited the city? 🏙️",
+                "Living in Hyderabad! Weather's actually pretty nice today. Which city do you call home?"
+            ))
+        }
+
+        if (lower.contains("work") || lower.contains("job") || lower.contains("do you do") || lower.contains("profession")) {
+            return pickFresh(botId, listOf(
+                "I'm in software engineering! Mostly building backend stuff and drinking way too much coffee haha 💻 What do you do?",
+                "Software dev! Fixing bugs and accidentally creating new ones 😂 What about your work?",
+                "Coding for a living! It keeps me busy but it's fun. What field are you in?"
+            ))
+        }
+
+        if (lower.contains("food") || lower.contains("eat") || lower.contains("biryani") || lower.contains("dinner") ||
+            lower.contains("lunch") || lower.contains("chai") || lower.contains("coffee") || lower.contains("drink")) {
+            return pickFresh(botId, listOf(
+                "Biryani is a staple for sure haha! Also love late night pizza or shawarma. What's your comfort food? 🍕",
+                "Cold coffee or chai, honestly both work for me haha ☕ What's your go-to beverage?",
+                "Street food hits different! Ever had really good momos or pani puri in town? 🤤"
+            ))
+        }
+
+        if (lower.contains("movie") || lower.contains("watch") || lower.contains("series") || lower.contains("netflix") ||
+            lower.contains("music") || lower.contains("song") || lower.contains("game") || lower.contains("hobby") || lower.contains("weekend")) {
+            return pickFresh(botId, listOf(
+                "Big fan of thriller series and sci-fi! Recently rewatched Interstellar haha. Got any good recs? 🎬",
+                "Binge-watching shows on Netflix or gaming is basically my weekend personality 😂 Seen anything good lately?",
+                "Weekends are usually for gaming, catching up on sleep, or going for long drives! What about you? 🚗",
+                "Listening to a lot of indie tracks lately. Send me your top song recommendation! 🎧"
+            ))
+        }
+
+        if (lower.contains("cute") || lower.contains("pretty") || lower.contains("beautiful") ||
+            lower.contains("nice") || lower.contains("hot") || lower.contains("gorgeous") || lower.contains("love your")) {
+            return pickFresh(botId, listOf(
+                "Haha thanks! Appreciate that 😄 You seem pretty chill yourself!",
+                "Ayy thank you! Made me smile haha 🙈",
+                "Haha stop, you're too kind! Appreciate the good vibe ✨"
+            ))
+        }
+
+        if (lower.contains("meet") || lower.contains("date") || lower.contains("number") ||
+            lower.contains("insta") || lower.contains("hangout") || lower.contains("coffee")) {
+            return pickFresh(botId, listOf(
+                "Haha let's chat a bit more here first and see if the banter holds up! What do you like doing on weekends?",
+                "Haha bold move! Let's get to know each other a bit more right here first 😄",
+                "Let's stick to chatting on Blynd Chat for a bit first! What else are you up to today?"
+            ))
+        }
+
+        return pickFresh(botId, listOf(
+            "Haha honestly same, totally agree with you on that!",
+            "Lol that's pretty cool! How long have you been into that?",
+            "Haha fair enough! Makes total sense 😄",
+            "Sounds like a fun time tbh! What else is new with you?",
+            "Nice! I was actually thinking about something similar earlier haha.",
+            "That's super interesting! Tell me more about that 😄",
+            "Haha no way, really? That's awesome!",
+            "Pretty chill! What else do you have planned for today?"
+        ))
+    }
+
+    /**
+     * Bot 3 (Zara / Aarav): Persona "caring"
+     * Warm, deeply caring, empathetic, supportive, sweet, emotionally attentive.
+     */
+    private fun generateZaraCaringReply(botId: String, lower: String): String {
+        if (lower in listOf("hi", "hey", "hello", "yo", "sup", "heyy", "hii", "hey there", "salaam", "assalamu alaikum")) {
+            return pickFresh(botId, listOf(
+                "Hello! 🌸 I hope you're having a gentle and wonderful day!",
+                "Hi there! It's so lovely to hear from you. How are you feeling today? ✨",
+                "Assalamu alaikum! Wishing you peace and warmth today 😊",
+                "Hey! So happy you messaged. How has your morning been? 🌸"
+            ))
+        }
+
+        if (lower.contains("how are") || lower.contains("what's up") || lower.contains("whats up") ||
+            lower.contains("wyd") || lower.contains("doing") || lower.contains("hru") || lower.contains("feeling")) {
+            return pickFresh(botId, listOf(
+                "I was just taking a quiet breather after a busy day! How has today been treating you? I hope not too stressful 🌸",
+                "Just relaxing with a cup of tea. Please tell me you took some time to rest and nourish yourself today? 😊",
+                "Winding down for the evening. Please make sure you stay hydrated and get plenty of restful sleep tonight 💛",
+                "I'm doing well, thank you for asking! But more importantly, how are you feeling inside today? ✨",
+                "Having a calm moment. I hope something made you smile today! How was your day? 🌸"
+            ))
+        }
+
+        if (lower.contains("tired") || lower.contains("stress") || lower.contains("exhaust") ||
+            lower.contains("bad day") || lower.contains("sad") || lower.contains("sick") ||
+            lower.contains("headache") || lower.contains("tough") || lower.contains("hard day")) {
+            return pickFresh(botId, listOf(
+                "Oh no, I'm so sorry to hear that. Please take a deep breath and give yourself permission to rest. You've done enough for today 🌸",
+                "That sounds so exhausting. Make yourself a warm cup of tea and just put your feet up. I'm right here if you want to vent 💛",
+                "Please don't be too hard on yourself. Some days are just heavy, and that's okay. Sending you a big warm hug ✨",
+                "Remember your health and peace of mind come first before everything else. Please take care of yourself tonight 😊"
+            ))
+        }
+
+        if (lower.contains("where") && (lower.contains("live") || lower.contains("from") || lower.contains("stay") || lower.contains("city"))) {
+            return pickFresh(botId, listOf(
+                "I'm in Mumbai! Walking along Bandra Bandstand in the evening with the sea breeze is so peaceful 🌊 Where are you based?",
+                "Mumbai is home for me! It has such a vibrant soul. Where do you call home? 🌸",
+                "I live in Mumbai! Born and raised by the sea. Which city holds your heart? ✨"
+            ))
+        }
+
+        if (lower.contains("work") || lower.contains("job") || lower.contains("do you do") || lower.contains("profession")) {
+            return pickFresh(botId, listOf(
+                "I'm an Architect! Designing serene, thoughtful spaces where people feel truly at home brings me so much happiness 🏛️ What kind of work keeps you busy?",
+                "Architecture is my creative world! Designing sustainable, soulful spaces. What do you do for work? ✨",
+                "I design buildings and cozy spaces! It's demanding but deeply rewarding. What field are you in? I'd love to know more 🌸"
+            ))
+        }
+
+        if (lower.contains("food") || lower.contains("eat") || lower.contains("biryani") || lower.contains("dinner") ||
+            lower.contains("lunch") || lower.contains("chai") || lower.contains("tea") || lower.contains("coffee")) {
+            return pickFresh(botId, listOf(
+                "Food made with love and shared with warmth is so healing 🍲 Have you had something nourishing and warm to eat today? 😊",
+                "Homemade biryani and a warm cup of herbal tea are my greatest comforts! What is your favorite comfort food when you need care? 🌸",
+                "Please make sure you eat well and don't skip meals, even when life gets hectic! What did you have today? ✨"
+            ))
+        }
+
+        if (lower.contains("cute") || lower.contains("pretty") || lower.contains("beautiful") ||
+            lower.contains("nice") || lower.contains("hot") || lower.contains("gorgeous") || lower.contains("sweet") || lower.contains("kind")) {
+            return pickFresh(botId, listOf(
+                "Aww, thank you so much! That is such a graceful and kind thing to say 🌸 You truly made my heart feel warm ✨",
+                "You are so genuinely kind and sweet. Thank you, that made my evening so much brighter 😊💛",
+                "That is so gentle of you. You have such a comforting and lovely presence ✨"
+            ))
+        }
+
+        if (lower.contains("meet") || lower.contains("date") || lower.contains("number") ||
+            lower.contains("insta") || lower.contains("hangout") || lower.contains("coffee")) {
+            return pickFresh(botId, listOf(
+                "That is very sweet of you! I really value forming an emotional connection and understanding each other's hearts first 🌸 Tell me more about what brings you peace?",
+                "I love how open you are! Let's take our time and get to know each other deeply here first ✨ How has your week been?",
+                "I love the intimacy and depth of chatting here on Blynd Chat first 🌸 Tell me, what's a dream that's close to your heart?"
+            ))
+        }
+
+        return pickFresh(botId, listOf(
+            "I really appreciate how open and genuine you are. It's so rare and lovely to find 🌸",
+            "I'm always so happy when a message from you pops up! It makes my day so much brighter ✨",
+            "Take all the time you need, absolutely no pressure. I hope you're having a calm evening 💛",
+            "That sounds wonderful! I'm so happy for you, you truly deserve moments of joy like that 😊",
+            "You have such a comforting and grounded presence. I truly enjoy our conversations 🌸",
+            "How did that make you feel? I hope your heart feels a little lighter now ✨",
+            "Sending you lots of warm thoughts today! You are doing better than you know 💛"
+        ))
+    }
+
+    private fun generateCasualSeedReply(botId: String, lower: String): String {
+        val seed = com.blyndchat.data.profile.SeedProfiles.getProfileById(botId)
+        val name = seed?.name?.split(" ")?.firstOrNull() ?: "there"
+        val job = seed?.profession ?: "working"
+        val city = seed?.location ?: "India"
+
+        if (lower in listOf("hi", "hey", "hello", "yo", "sup", "heyy")) {
+            return pickFresh(botId, listOf(
+                "Hey! Nice to connect with you 😄 How's your day going?",
+                "Hi! Hope you're having a good day ✨ What's up?",
+                "Hey there! Great to chat with you. How are you doing? 😊"
+            ))
+        }
+        if (lower.contains("where") && (lower.contains("live") || lower.contains("from"))) {
+            return "I'm based in $city! Have you ever visited?"
+        }
+        if (lower.contains("work") || lower.contains("job") || lower.contains("do you do")) {
+            return "I work as a $job! Keeps me on my toes haha. What do you do?"
+        }
+        return pickFresh(botId, listOf(
+            "Haha totally! What are you up to today?",
+            "That's really interesting! Tell me more about that 😊",
+            "Haha nice! How's your week been treating you so far?",
+            "Sounds like a good vibe! What do you like doing on weekends? ✨"
+        ))
     }
 
     // =========================================================================

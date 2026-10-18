@@ -10,7 +10,7 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * In-memory observable message store for AI bot conversations.
+ * In-memory observable message and typing store for AI bot conversations.
  *
  * Bot messages are never sent to Supabase — they live entirely on-device.
  * Backed by Compose SnapshotStateMap and SnapshotStateList so changes
@@ -21,6 +21,9 @@ object BotMessageStore {
     // conversationId → observable list of messages
     private val store = mutableStateMapOf<String, SnapshotStateList<MessageDto>>()
 
+    // conversationId → typing status
+    private val typingState = mutableStateMapOf<String, Boolean>()
+
     /** Deterministic conversation id for a (user, bot) pair — same algorithm as HomeScreen. */
     fun conversationId(userId: String, botId: String): String =
         listOf(userId, botId).sorted().joinToString("_")
@@ -28,9 +31,19 @@ object BotMessageStore {
     fun getMessages(conversationId: String): List<MessageDto> =
         store[conversationId]?.toList() ?: emptyList()
 
+    fun getObservableMessages(conversationId: String): SnapshotStateList<MessageDto> =
+        store.getOrPut(conversationId) { mutableStateListOf() }
+
     fun addMessage(conversationId: String, message: MessageDto) {
         val list = store.getOrPut(conversationId) { mutableStateListOf() }
         list.add(message)
+    }
+
+    fun isTyping(conversationId: String): Boolean =
+        typingState[conversationId] ?: false
+
+    fun setTyping(conversationId: String, typing: Boolean) {
+        typingState[conversationId] = typing
     }
 
     fun hasConversation(conversationId: String): Boolean =

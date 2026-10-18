@@ -114,4 +114,97 @@ class SeedProfilesAndBotTest {
         val elapsed25h = now - twentyFiveHoursAgo
         assertTrue(elapsed25h >= total24h)
     }
+
+    @Test
+    fun testBotReplySchedulerTimings() {
+        // Bot 1 (Aria / Kabir): starts typing after 10 seconds (10,000ms), types for 2.5s
+        val ariaTiming = com.blyndchat.data.ai.BotReplyScheduler.getTimingConfig(AiBotConfig.BOT_ID_ARIA)
+        assertEquals("Bot 1 pre-typing delay must be exactly 10 seconds", 10_000L, ariaTiming.first)
+        assertEquals("Bot 1 typing duration must be 2.5 seconds", 2_500L, ariaTiming.second)
+
+        // Bot 2 (Maya / Rohan): replies after 10 minutes (600,000ms)
+        val mayaTiming = com.blyndchat.data.ai.BotReplyScheduler.getTimingConfig(AiBotConfig.BOT_ID_MAYA)
+        val mayaTotal = mayaTiming.first + mayaTiming.second
+        assertEquals("Bot 2 total reply delay must be exactly 10 minutes (600,000ms)", 10 * 60 * 1000L, mayaTotal)
+        assertTrue("Bot 2 pre-typing delay must be positive", mayaTiming.first > 0)
+        assertTrue("Bot 2 typing duration must be positive", mayaTiming.second > 0)
+
+        // Bot 3 (Zara / Aarav): replies after every 1 to 3 minutes (60,000ms to 180,000ms)
+        repeat(20) {
+            val zaraTiming = com.blyndchat.data.ai.BotReplyScheduler.getTimingConfig(AiBotConfig.BOT_ID_ZARA)
+            val zaraTotal = zaraTiming.first + zaraTiming.second
+            assertTrue(
+                "Bot 3 total reply delay must be between 1 and 3 minutes (got $zaraTotal ms)",
+                zaraTotal in 60_000L..180_000L
+            )
+            assertTrue("Bot 3 typing duration must be positive", zaraTiming.second > 0)
+        }
+    }
+
+    @Test
+    fun testBot1PersonaAriaAsIs() {
+        // Bot 1: Persona "as is" (dry, uninterested, low-effort)
+        val greetingReply = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_ARIA, "hey")
+        assertTrue("Aria greeting reply should be dry/short: $greetingReply", greetingReply.length <= 10)
+
+        val locationReply = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_ARIA, "where do you live?")
+        assertEquals("bangalore", locationReply)
+
+        val workReply = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_ARIA, "what is your job?")
+        assertEquals("ux design", workReply)
+
+        val complimentReply = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_ARIA, "you are so pretty")
+        assertTrue(
+            "Aria compliment reply should be minimal: $complimentReply",
+            complimentReply in listOf("thanks", "thx", "cool", "ty", "haha ok")
+        )
+
+        val dryAccusation = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_ARIA, "why are you so dry?")
+        assertTrue(
+            "Aria dry response should be nonchalant: $dryAccusation",
+            dryAccusation in listOf("im not dry", "just tired", "nah", "busy rn", "what", "lol no")
+        )
+    }
+
+    @Test
+    fun testBot2PersonaMayaCasual() {
+        // Bot 2: Persona "a bit casual" (chill, relaxed, casual banter)
+        val greetingReply = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_MAYA, "hey there")
+        assertTrue("Maya greeting should be casual and friendly: $greetingReply", greetingReply.contains("!") || greetingReply.contains("?"))
+
+        val howAreYou = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_MAYA, "how are you doing?")
+        val lowerHow = howAreYou.lowercase()
+        assertTrue(
+            "Maya how are you should be casual chat: $howAreYou",
+            lowerHow.contains("chilling") || lowerHow.contains("work") || lowerHow.contains("music") ||
+                lowerHow.contains("week") || lowerHow.contains("break") || lowerHow.contains("chill")
+        )
+
+        val locationReply = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_MAYA, "which city are you from?")
+        assertTrue("Maya should mention Hyderabad: $locationReply", locationReply.contains("Hyderabad"))
+
+        val workReply = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_MAYA, "what is your profession?")
+        assertTrue("Maya should mention software / coding: $workReply", workReply.lowercase().contains("software") || workReply.lowercase().contains("coding"))
+    }
+
+    @Test
+    fun testBot3PersonaZaraCaring() {
+        // Bot 3: Persona "caring" (warm, deeply caring, empathetic, supportive)
+        val greetingReply = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_ZARA, "hello")
+        assertTrue("Zara greeting should be warm and gentle: $greetingReply", greetingReply.contains("🌸") || greetingReply.contains("✨") || greetingReply.contains("😊"))
+
+        val howAreYou = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_ZARA, "how are you?")
+        assertTrue(
+            "Zara reply should check in warmly: $howAreYou",
+            howAreYou.contains("rest") || howAreYou.contains("hydrated") || howAreYou.contains("stressful") ||
+                howAreYou.contains("feeling") || howAreYou.contains("smile")
+        )
+
+        val tiredMsg = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_ZARA, "I had such a hard and exhausting day at work")
+        assertTrue(
+            "Zara should provide empathetic comfort: $tiredMsg",
+            tiredMsg.contains("rest") || tiredMsg.contains("tea") || tiredMsg.contains("hug") ||
+                tiredMsg.contains("sorry") || tiredMsg.contains("breathe")
+        )
+    }
 }
