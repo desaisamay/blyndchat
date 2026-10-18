@@ -213,4 +213,67 @@ class SeedProfilesAndBotTest {
                 tiredMsg.contains("health")
         )
     }
+
+    @Test
+    fun testBotInterestStoreWorkflow() {
+        // Reset in-memory state for fresh testing
+        com.blyndchat.data.ai.BotInterestStore.resetForTesting()
+
+        // 1. By default, all 3 AI bots automatically send requests to the user
+        assertEquals("Should have 3 pending bot requests by default", 3, com.blyndchat.data.ai.BotInterestStore.pendingCount())
+        assertTrue("Aria should be pending", com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_ARIA))
+        assertTrue("Maya should be pending", com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_MAYA))
+        assertTrue("Zara should be pending", com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_ZARA))
+
+        // None are accepted yet, so user cannot chat with them in Chats tab yet
+        assertFalse("Aria should not be accepted yet", com.blyndchat.data.ai.BotInterestStore.isAccepted(AiBotConfig.BOT_ID_ARIA))
+        assertFalse("Maya should not be accepted yet", com.blyndchat.data.ai.BotInterestStore.isAccepted(AiBotConfig.BOT_ID_MAYA))
+        assertFalse("Zara should not be accepted yet", com.blyndchat.data.ai.BotInterestStore.isAccepted(AiBotConfig.BOT_ID_ZARA))
+        assertTrue("Accepted bot IDs set should be empty", com.blyndchat.data.ai.BotInterestStore.getAcceptedBotIds().isEmpty())
+
+        // Verify pending bots list matches user gender
+        val pendingForMale = com.blyndchat.data.ai.BotInterestStore.getPendingBots(userGender = "Male")
+        assertEquals(3, pendingForMale.size)
+        assertEquals("Aria Sharma", pendingForMale[0].name)
+        assertEquals("Maya Reddy", pendingForMale[1].name)
+        assertEquals("Zara Khan", pendingForMale[2].name)
+
+        val pendingForFemale = com.blyndchat.data.ai.BotInterestStore.getPendingBots(userGender = "Female")
+        assertEquals(3, pendingForFemale.size)
+        assertEquals("Kabir Sharma", pendingForFemale[0].name)
+
+        // 2. User accepts Aria's request in the Received section
+        com.blyndchat.data.ai.BotInterestStore.acceptRequest(
+            context = null,
+            botId = AiBotConfig.BOT_ID_ARIA,
+            effectiveUid = "test_user_123"
+        )
+
+        // Now Aria is accepted, remaining pending count is 2
+        assertTrue("Aria should now be accepted", com.blyndchat.data.ai.BotInterestStore.isAccepted(AiBotConfig.BOT_ID_ARIA))
+        assertFalse("Aria should no longer be pending", com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_ARIA))
+        assertEquals(2, com.blyndchat.data.ai.BotInterestStore.pendingCount())
+        assertEquals(setOf(AiBotConfig.BOT_ID_ARIA), com.blyndchat.data.ai.BotInterestStore.getAcceptedBotIds())
+
+        // BotMessageStore should have initialized the conversation with a greeting
+        val convoId = com.blyndchat.data.ai.BotMessageStore.conversationId("test_user_123", AiBotConfig.BOT_ID_ARIA)
+        assertTrue("Conversation must exist in BotMessageStore after acceptance", com.blyndchat.data.ai.BotMessageStore.hasConversation(convoId))
+        val lastMsg = com.blyndchat.data.ai.BotMessageStore.lastMessage(convoId)
+        assertNotNull(lastMsg)
+        assertEquals("Aria's greeting should be 'hi'", "hi", lastMsg?.content)
+
+        // 3. User rejects Maya's request
+        com.blyndchat.data.ai.BotInterestStore.rejectRequest(context = null, botId = AiBotConfig.BOT_ID_MAYA)
+        assertFalse("Maya should not be accepted", com.blyndchat.data.ai.BotInterestStore.isAccepted(AiBotConfig.BOT_ID_MAYA))
+        assertFalse("Maya should not be pending", com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_MAYA))
+        assertEquals(com.blyndchat.data.ai.BotInterestStore.STATUS_REJECTED, com.blyndchat.data.ai.BotInterestStore.getStatus(AiBotConfig.BOT_ID_MAYA))
+        assertEquals(1, com.blyndchat.data.ai.BotInterestStore.pendingCount())
+
+        // 4. Reset to pending
+        com.blyndchat.data.ai.BotInterestStore.resetToPending(context = null)
+        assertEquals(3, com.blyndchat.data.ai.BotInterestStore.pendingCount())
+        assertTrue(com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_ARIA))
+        assertTrue(com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_MAYA))
+        assertTrue(com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_ZARA))
+    }
 }

@@ -73,6 +73,7 @@ import coil.compose.AsyncImage
 import com.blyndchat.BuildConfig
 import com.blyndchat.data.ai.AiBotConfig
 import com.blyndchat.data.ai.AiBotEngine
+import com.blyndchat.data.ai.BotInterestStore
 import com.blyndchat.data.ai.BotMessageStore
 import com.blyndchat.data.auth.CredentialStore
 import com.blyndchat.data.model.Profile
@@ -136,6 +137,7 @@ fun HomeScreen(navController: NavController) {
     // ---- Selected tab; seed from SavedStateHandle "targetTab" deep-link (>=0). ----
     var targetTab by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
+        BotInterestStore.init(context.applicationContext)
         val deepLink = navController.currentBackStackEntry
             ?.savedStateHandle
             ?.get<Int>("targetTab") ?: -1
@@ -252,6 +254,8 @@ fun HomeScreen(navController: NavController) {
 
     // ---- Received tab state: pending interests where I'm the receiver. ----
     val received = remember { mutableStateListOf<InterestDto>() }
+    val pendingBots = BotInterestStore.getPendingBots(userGender)
+    val totalReceivedCount = received.size + pendingBots.size
 
     LaunchedEffect(targetTab, token) {
         if (targetTab == 2 && !token.isNullOrBlank() && !myUid.isNullOrBlank()) {
@@ -347,11 +351,30 @@ fun HomeScreen(navController: NavController) {
                         selected = selected,
                         onClick = { targetTab = index },
                         icon = {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = label,
-                                tint = if (selected) colors.bottomBarSelectedIcon else colors.bottomBarUnselected
-                            )
+                            if (index == 2 && totalReceivedCount > 0) {
+                                androidx.compose.material3.BadgedBox(
+                                    badge = {
+                                        androidx.compose.material3.Badge(
+                                            containerColor = LuxuryRose,
+                                            contentColor = Color.White
+                                        ) {
+                                            Text("$totalReceivedCount", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = label,
+                                        tint = if (selected) colors.bottomBarSelectedIcon else colors.bottomBarUnselected
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    tint = if (selected) colors.bottomBarSelectedIcon else colors.bottomBarUnselected
+                                )
+                            }
                         },
                         label = {
                             Text(
@@ -392,21 +415,9 @@ fun HomeScreen(navController: NavController) {
                         if (AiBotConfig.isBot(profile.id)) {
                             val effectiveUid = myUid?.takeIf { it.isNotBlank() } ?: "user_local"
                             val convoId = BotMessageStore.conversationId(effectiveUid, profile.id)
-                            if (!BotMessageStore.hasConversation(convoId)) {
-                                val greeting = AiBotEngine.getGreeting(profile.id)
-                                BotMessageStore.addMessage(
-                                    convoId, MessageDto(
-                                        id = "bot_greet_${System.currentTimeMillis()}",
-                                        conversationId = convoId,
-                                        senderId = profile.id,
-                                        receiverId = effectiveUid,
-                                        content = greeting,
-                                        createdAt = BotMessageStore.nowTimestamp()
-                                    )
-                                )
-                            }
+                            BotInterestStore.acceptRequest(context, profile.id, effectiveUid)
                             scope.launch {
-                                snackbarHostState.showSnackbar("Request Sent ✨")
+                                snackbarHostState.showSnackbar("It's a Match with ${profile.name}! Starting chat... ✨")
                                 delay(600)
                                 NotificationUtils.showMessageNotification(
                                     context = context,
@@ -501,7 +512,8 @@ fun HomeScreen(navController: NavController) {
 
                 2 -> ReceivedTab(
                     received = received,
-                    onAccept = { interest ->
+                    pendingBots = pendingBots,
+                    onAcceptRemote = { interest ->
                         val id = interest.id
                         if (id != null && !token.isNullOrBlank()) {
                             scope.launch {
@@ -514,11 +526,32 @@ fun HomeScreen(navController: NavController) {
                                     )
                                 }.onSuccess {
                                     received.remove(interest)
-                                    snackbarHostState.showSnackbar("Interest accepted")
+                                    snackbarHostState.showSnackbar("Interest accepted ✨")
                                 }.onFailure {
                                     snackbarHostState.showSnackbar(it.message ?: "Failed to accept")
                                 }
                             }
+                        }
+                    },
+                    onAcceptBot = { botProfile ->
+                        val effectiveUid = myUid?.takeIf { it.isNotBlank() } ?: "user_local"
+                        BotInterestStore.acceptRequest(context, botProfile.id, effectiveUid)
+                        val convoId = BotMessageStore.conversationId(effectiveUid, botProfile.id)
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Connected with ${botProfile.name}! ✨",
+                                actionLabel = "Chat Now",
+                                duration = SnackbarDuration.Short
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                navController.navigate("chat/$convoId/${botProfile.id}")
+                            }
+                        }
+                    },
+                    onRejectBot = { botProfile ->
+                        BotInterestStore.rejectRequest(context, botProfile.id)
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Request declined")
                         }
                     }
                 )
@@ -605,7 +638,11 @@ private fun ChatsTab(
 ) {
     val colors = com.blyndchat.ui.theme.LocalAppColors.current
     val effectiveUid = myUid?.takeIf { it.isNotBlank() } ?: "user_local"
-    val localConversations = BotMessageStore.conversationsFor(effectiveUid)
+    val acceptedBotIds = BotInterestStore.getAcceptedBotIds()
+    val localConversations = BotMessageStore.conversationsFor(effectiveUid).filter { convoId ->
+        val peerId = convoId.split("_").firstOrNull { it != effectiveUid } ?: ""
+        !AiBotConfig.isBot(peerId) || acceptedBotIds.contains(peerId)
+    }
 
     LazyColumn(contentPadding = PaddingValues(16.dp)) {
         // Top section: "Recent Matches" horizontal stories
@@ -710,7 +747,7 @@ private fun ChatsTab(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Connect with profiles in the Profiles tab to start chatting!",
+                            text = "Accept requests in the 'Received' tab or match with profiles to start chatting ✨",
                             color = colors.textSecondary,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center
@@ -885,52 +922,230 @@ private fun ChatsTab(
 @Composable
 private fun ReceivedTab(
     received: SnapshotStateList<InterestDto>,
-    onAccept: (InterestDto) -> Unit
+    pendingBots: List<Profile>,
+    onAcceptRemote: (InterestDto) -> Unit,
+    onAcceptBot: (Profile) -> Unit,
+    onRejectBot: (Profile) -> Unit
 ) {
     val colors = com.blyndchat.ui.theme.LocalAppColors.current
-    if (received.isEmpty()) {
-        EmptyState("No received interests yet ✨")
+    if (received.isEmpty() && pendingBots.isEmpty()) {
+        EmptyState("No received connection requests yet ✨\nCheck back soon!")
         return
     }
     LazyColumn(contentPadding = PaddingValues(16.dp)) {
-        items(received, key = { it.id ?: it.senderId }) { interest ->
+        item {
+            Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                Text(
+                    text = "Connection Requests ✨",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    ),
+                    color = if (colors.isDark) LuxuryGold else Color(0xFF9A2D55)
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "People & AI companions who want to connect with you anonymously",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                    fontSize = 12.sp
+                )
+            }
+        }
+
+        // 1. Pending AI Bot Requests
+        items(pendingBots, key = { "bot_${it.id}" }) { bot ->
             Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = colors.cardContainer),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (colors.isDark) LuxuryGold.copy(alpha = 0.35f) else LuxuryRose.copy(alpha = 0.35f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Avatar with luxury gold/rose sweep gradient
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .border(
+                                    width = 2.dp,
+                                    brush = Brush.sweepGradient(
+                                        listOf(LuxuryGold, LuxuryRose, Color(0xFF9D4EDD), LuxuryGold)
+                                    ),
+                                    shape = CircleShape
+                                )
+                                .padding(2.dp)
+                                .clip(CircleShape)
+                        ) {
+                            AsyncImage(
+                                model = bot.imageUrl ?: "",
+                                contentDescription = bot.name,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "${bot.name}, ${bot.age}",
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.textPrimary,
+                                    fontSize = 15.sp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (colors.isDark) LuxuryGold.copy(alpha = 0.18f) else LuxuryRose.copy(alpha = 0.18f)
+                                ) {
+                                    Text(
+                                        text = "AI ✨",
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (colors.isDark) LuxuryGold else Color(0xFF9A2D55)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(2.dp))
+
+                            Text(
+                                text = "${bot.profession ?: "Companion"} • ${bot.location ?: "India"}",
+                                color = colors.textSecondary,
+                                fontSize = 12.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(2.dp))
+
+                            Text(
+                                text = "Sent you a connection request ✨",
+                                color = if (colors.isDark) LuxuryGold.copy(alpha = 0.85f) else LuxuryRose,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    if (!bot.about.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = colors.chatBubblePeerContainer.copy(alpha = 0.45f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "\"${bot.about}\"",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                color = colors.textSecondary,
+                                fontSize = 12.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.TextButton(
+                            onClick = { onRejectBot(bot) }
+                        ) {
+                            Text("Decline", color = colors.textSecondary, fontSize = 13.sp)
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Button(
+                            onClick = { onAcceptBot(bot) },
+                            shape = RoundedCornerShape(20.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (colors.isDark) LuxuryGold else LuxuryRose,
+                                contentColor = if (colors.isDark) Color(0xFF16111E) else Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+                        ) {
+                            Text("Accept ✨", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Pending Remote Interests
+        items(received, key = { "remote_${it.id ?: it.senderId}" }) { interest ->
+            val peerProfile = SeedProfiles.getProfileById(interest.senderId)
+            Card(
+                shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = colors.cardContainer),
                 border = androidx.compose.foundation.BorderStroke(1.dp, colors.cardBorderSubtle),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 6.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Interest from ${interest.senderId.take(8)}...",
-                            fontWeight = FontWeight.Bold,
-                            color = colors.textPrimary,
-                            fontSize = 15.sp
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Wants to connect with you anonymously",
-                            color = colors.textSecondary,
-                            fontSize = 12.sp
-                        )
-                    }
-                    Button(
-                        onClick = { onAccept(interest) },
-                        shape = RoundedCornerShape(20.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = LuxuryRose
-                        )
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Accept ✨", fontWeight = FontWeight.Bold)
+                        if (peerProfile != null) {
+                            Box(
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .border(1.5.dp, if (colors.isDark) LuxuryGold else LuxuryRose, CircleShape)
+                                    .padding(2.dp)
+                                    .clip(CircleShape)
+                            ) {
+                                AsyncImage(
+                                    model = peerProfile.imageUrl ?: "",
+                                    contentDescription = peerProfile.name,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            val displayName = peerProfile?.name ?: "Interest from ${interest.senderId.take(8)}..."
+                            Text(
+                                text = displayName,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.textPrimary,
+                                fontSize = 15.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Wants to connect with you anonymously",
+                                color = colors.textSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        Button(
+                            onClick = { onAcceptRemote(interest) },
+                            shape = RoundedCornerShape(20.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = LuxuryRose
+                            ),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text("Accept ✨", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
                     }
                 }
             }
