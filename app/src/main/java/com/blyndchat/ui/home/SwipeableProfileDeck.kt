@@ -272,25 +272,73 @@ fun SwipeableProfileDeck(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val undoBackgroundBrush = when {
+                canUndo && colors.isDark -> Brush.linearGradient(
+                    listOf(Color(0xFF382D06), Color(0xFF503F08))
+                )
+                canUndo && !colors.isDark -> Brush.linearGradient(
+                    listOf(Color(0xFFFFFBEA), Color(0xFFFFF3CD))
+                )
+                !canUndo && colors.isDark -> Brush.linearGradient(
+                    listOf(Color(0xFF1E1E24), Color(0xFF1E1E24))
+                )
+                else -> Brush.linearGradient(
+                    listOf(Color(0xFFEDEBF2), Color(0xFFEDEBF2))
+                )
+            }
+
+            val undoBorderBrush = when {
+                canUndo && colors.isDark -> Brush.linearGradient(
+                    listOf(LuxuryGold, Color(0xFFFFB03A))
+                )
+                canUndo && !colors.isDark -> Brush.linearGradient(
+                    listOf(Color(0xFFD97706), Color(0xFFB45309))
+                )
+                !canUndo && colors.isDark -> Brush.linearGradient(
+                    listOf(Color(0x33FFFFFF), Color(0x33FFFFFF))
+                )
+                else -> Brush.linearGradient(
+                    listOf(Color(0xFFD5D2E0), Color(0xFFD5D2E0))
+                )
+            }
+
+            val undoTint = when {
+                canUndo && colors.isDark -> LuxuryGold
+                canUndo && !colors.isDark -> Color(0xFFB45309)
+                !canUndo && colors.isDark -> Color(0x55FFFFFF)
+                else -> Color(0xFF8E889E)
+            }
+
             // Undo button
             IconButton(
                 onClick = { onUndo?.invoke() },
                 enabled = canUndo,
                 modifier = Modifier
-                    .size(46.dp)
+                    .size(48.dp)
+                    .then(
+                        if (canUndo) {
+                            Modifier.shadow(
+                                elevation = 10.dp,
+                                shape = CircleShape,
+                                spotColor = if (colors.isDark) LuxuryGold.copy(alpha = 0.5f) else Color(0xFFD97706).copy(alpha = 0.35f)
+                            )
+                        } else {
+                            Modifier
+                        }
+                    )
                     .clip(CircleShape)
-                    .background(if (canUndo) Color(0x22FFD700) else Color(0x11FFFFFF))
+                    .background(undoBackgroundBrush)
                     .border(
-                        1.dp,
-                        if (canUndo) LuxuryGold.copy(alpha = 0.6f) else Color(0x22FFFFFF),
-                        CircleShape
+                        width = if (canUndo) 1.5.dp else 1.dp,
+                        brush = undoBorderBrush,
+                        shape = CircleShape
                     )
             ) {
                 Icon(
                     imageVector = Icons.Default.Refresh,
-                    contentDescription = "Undo",
-                    tint = if (canUndo) LuxuryGold else Color(0x44FFFFFF),
-                    modifier = Modifier.size(20.dp)
+                    contentDescription = "Undo previous swipe",
+                    tint = undoTint,
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
