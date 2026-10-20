@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -53,16 +54,16 @@ fun ProfileCard(
             .padding(horizontal = 16.dp, vertical = 10.dp)
             .shadow(
                 elevation = 16.dp,
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(12.dp),
                 spotColor = colors.cardShadowSpot,
                 ambientColor = if (colors.isDark) LuxuryGold.copy(alpha = 0.2f) else Color(0x10000000)
             )
             .border(
                 width = 1.5.dp,
                 brush = colors.cardBorder,
-                shape = RoundedCornerShape(24.dp)
+                shape = RoundedCornerShape(12.dp)
             ),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = colors.cardContainer
         )
@@ -102,21 +103,57 @@ fun ProfileCard(
                     .fillMaxWidth()
                     .padding(horizontal = 18.dp, vertical = 14.dp)
             ) {
-                // Name & Age Row
+                // Name & Age Row with Info Button
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "${profile.name}, ${profile.age}",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 22.sp,
-                            letterSpacing = 0.3.sp
-                        ),
-                        color = colors.textPrimary
-                    )
-                    Text("✓", color = if (colors.isDark) LuxuryGold else Color(0xFFB33664), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "${profile.name}, ${profile.age}",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 22.sp,
+                                letterSpacing = 0.3.sp
+                            ),
+                            color = colors.textPrimary
+                        )
+                        Text("✓", color = if (colors.isDark) LuxuryGold else Color(0xFFB33664), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    // Appealing & Big Info Button on Card
+                    IconButton(
+                        onClick = onViewDetailsClick,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .shadow(8.dp, CircleShape, spotColor = Color(0xFF00C6FF).copy(alpha = 0.4f))
+                            .clip(CircleShape)
+                            .background(
+                                if (colors.isDark) Color(0xFF132A44)
+                                else Color(0xFFE0F2FE)
+                            )
+                            .border(
+                                1.5.dp,
+                                Brush.linearGradient(
+                                    listOf(
+                                        Color(0xFF38BDF8),
+                                        Color(0xFF0284C7)
+                                    )
+                                ),
+                                CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "View Profile Info",
+                            tint = if (colors.isDark) Color(0xFF38BDF8) else Color(0xFF0284C7),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))

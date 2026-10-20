@@ -48,12 +48,15 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.snapshots.SnapshotStateMap
@@ -134,14 +137,34 @@ fun HomeScreen(navController: NavController) {
         }
     }
 
-    // ---- Selected tab; seed from SavedStateHandle "targetTab" deep-link (>=0). ----
-    var targetTab by remember { mutableStateOf(0) }
+    // ---- Selected tab; preserved across navigation and seeded from SavedStateHandle "targetTab" (>=0). ----
+    var targetTab by rememberSaveable { mutableIntStateOf(0) }
+
     LaunchedEffect(Unit) {
         BotInterestStore.init(context.applicationContext)
-        val deepLink = navController.currentBackStackEntry
-            ?.savedStateHandle
-            ?.get<Int>("targetTab") ?: -1
-        if (deepLink >= 0) targetTab = deepLink
+    }
+
+    LaunchedEffect(myUid, userGender) {
+        BotInterestStore.startFirstLoginScheduleIfNeeded(
+            context = context.applicationContext,
+            userId = myUid,
+            userGender = userGender
+        )
+    }
+
+    val navBackStackEntry = navController.currentBackStackEntry
+    val savedTargetTab by navBackStackEntry
+        ?.savedStateHandle
+        ?.getStateFlow<Int?>("targetTab", null)
+        ?.collectAsState() ?: remember { mutableStateOf(null) }
+
+    LaunchedEffect(savedTargetTab) {
+        savedTargetTab?.let { tab ->
+            if (tab >= 0) {
+                targetTab = tab
+                navBackStackEntry?.savedStateHandle?.remove<Int>("targetTab")
+            }
+        }
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -180,9 +203,10 @@ fun HomeScreen(navController: NavController) {
         )
         if (result.isSuccess) {
             profiles.clear()
+            val acceptedIds = BotInterestStore.getAcceptedBotIds()
             profiles.addAll(
                 result.getOrDefault(emptyList())
-                    .filter { it.id.isNotBlank() && it.name.isNotBlank() }
+                    .filter { it.id.isNotBlank() && it.name.isNotBlank() && !acceptedIds.contains(it.id) }
             )
         }
         isLoadingProfiles = false
@@ -203,9 +227,9 @@ fun HomeScreen(navController: NavController) {
                     orFilter = "sender_id.eq.$myUid,receiver_id.eq.$myUid",
                     order = "updated_at.desc"
                 )
-            }.onSuccess {
+            }.onSuccess { list ->
                 chats.clear()
-                chats.addAll(it)
+                chats.addAll(list.filter { it.status == "accepted" })
             }
         }
     }
@@ -256,6 +280,7 @@ fun HomeScreen(navController: NavController) {
     val received = remember { mutableStateListOf<InterestDto>() }
     val pendingBots = BotInterestStore.getPendingBots(userGender)
     val totalReceivedCount = received.size + pendingBots.size
+    val totalUnreadChats = BotMessageStore.totalUnreadCount()
 
     LaunchedEffect(targetTab, token) {
         if (targetTab == 2 && !token.isNullOrBlank() && !myUid.isNullOrBlank()) {
@@ -351,7 +376,28 @@ fun HomeScreen(navController: NavController) {
                         selected = selected,
                         onClick = { targetTab = index },
                         icon = {
-                            if (index == 2 && totalReceivedCount > 0) {
+                            if (index == 1 && totalUnreadChats > 0) {
+                                androidx.compose.material3.BadgedBox(
+                                    badge = {
+                                        androidx.compose.material3.Badge(
+                                            containerColor = LuxuryRose,
+                                            contentColor = Color.White
+                                        ) {
+                                            Text(
+                                                text = if (totalUnreadChats > 9) "9+" else "$totalUnreadChats",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = label,
+                                        tint = if (selected) colors.bottomBarSelectedIcon else colors.bottomBarUnselected
+                                    )
+                                }
+                            } else if (index == 2 && totalReceivedCount > 0) {
                                 androidx.compose.material3.BadgedBox(
                                     badge = {
                                         androidx.compose.material3.Badge(
@@ -412,12 +458,31 @@ fun HomeScreen(navController: NavController) {
                     onSwipeRight = { profile ->
                         profiles.remove(profile)
                         lastSwipedProfile = profile
+                        val effectiveUid = myUid?.takeIf { it.isNotBlank() } ?: "user_local"
+
                         if (AiBotConfig.isBot(profile.id)) {
-                            val effectiveUid = myUid?.takeIf { it.isNotBlank() } ?: "user_local"
-                            val convoId = BotMessageStore.conversationId(effectiveUid, profile.id)
-                            BotInterestStore.acceptRequest(context, profile.id, effectiveUid)
+                            BotInterestStore.sendOutgoingRequest(
+                                context = context,
+                                peerId = profile.id,
+                                peerName = profile.name,
+                                effectiveUid = effectiveUid,
+                                delayMs = 12_000L,
+                                onAccepted = {
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "${profile.name} accepted your request ✨",
+                                            actionLabel = "Chat",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            val convoId = BotMessageStore.conversationId(effectiveUid, profile.id)
+                                            navController.navigate("chat/$convoId/${profile.id}")
+                                        }
+                                    }
+                                }
+                            )
                             scope.launch {
-                                snackbarHostState.showSnackbar("You and ${profile.name} are connected ✨ Tap 'Chats' to start")
+                                snackbarHostState.showSnackbar("Request sent to ${profile.name} ✨")
                             }
                         } else {
                             if (!token.isNullOrBlank() && !myUid.isNullOrBlank()) {
@@ -435,13 +500,35 @@ fun HomeScreen(navController: NavController) {
                                         )
                                         svc.sendInterest(body)
                                     }.onSuccess {
-                                        snackbarHostState.showSnackbar("Request Sent ✨")
+                                        snackbarHostState.showSnackbar("Request sent to ${profile.name} ✨")
                                     }.onFailure {
-                                        snackbarHostState.showSnackbar(it.message ?: "Failed to send connection")
+                                        snackbarHostState.showSnackbar(it.message ?: "Failed to send request")
                                     }
                                 }
                             } else {
-                                navController.navigate("profile/${profile.id}")
+                                BotInterestStore.sendOutgoingRequest(
+                                    context = context,
+                                    peerId = profile.id,
+                                    peerName = profile.name,
+                                    effectiveUid = effectiveUid,
+                                    delayMs = 12_000L,
+                                    onAccepted = {
+                                        scope.launch {
+                                            val result = snackbarHostState.showSnackbar(
+                                                message = "${profile.name} accepted your request ✨",
+                                                actionLabel = "Chat",
+                                                duration = SnackbarDuration.Short
+                                            )
+                                            if (result == SnackbarResult.ActionPerformed) {
+                                                val convoId = BotMessageStore.conversationId(effectiveUid, profile.id)
+                                                navController.navigate("chat/$convoId/${profile.id}")
+                                            }
+                                        }
+                                    }
+                                )
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Request sent to ${profile.name} ✨")
+                                }
                             }
                         }
                         if (profiles.isEmpty()) {
@@ -453,20 +540,6 @@ fun HomeScreen(navController: NavController) {
                     onSwipeLeft = { profile ->
                         profiles.remove(profile)
                         lastSwipedProfile = profile
-                        scope.launch {
-                            val result = snackbarHostState.showSnackbar(
-                                message = "Rejected ${profile.name}",
-                                actionLabel = "Undo",
-                                withDismissAction = true,
-                                duration = SnackbarDuration.Short
-                            )
-                            if (result == SnackbarResult.ActionPerformed) {
-                                profiles.add(0, profile)
-                                lastSwipedProfile = null
-                                store.clearDailyLimitTimestamp()
-                                dailyLimitTimestamp = 0L
-                            }
-                        }
                         if (profiles.isEmpty()) {
                             val now = System.currentTimeMillis()
                             store.saveDailyLimitTimestamp(now)
@@ -542,9 +615,6 @@ fun HomeScreen(navController: NavController) {
                     },
                     onRejectBot = { botProfile ->
                         BotInterestStore.rejectRequest(context, botProfile.id)
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Request declined")
-                        }
                     }
                 )
 
@@ -638,7 +708,10 @@ private fun ChatsTab(
         .distinct()
         .filter { convoId ->
             val peerId = convoId.split("_").firstOrNull { it != effectiveUid } ?: ""
-            !AiBotConfig.isBot(peerId) || acceptedBotIds.contains(peerId)
+            acceptedBotIds.contains(peerId)
+        }
+        .sortedByDescending { convoId ->
+            BotMessageStore.getLastActivityTimestamp(convoId)
         }
 
     LazyColumn(contentPadding = PaddingValues(16.dp)) {
@@ -661,44 +734,71 @@ private fun ChatsTab(
                             val peerProfile = AiBotConfig.getBotProfile(peerId, userGender)
                                 ?: SeedProfiles.getProfileById(peerId)
                             val firstName = peerProfile?.name?.split(" ")?.firstOrNull() ?: "Match"
+                            val hasUnread = BotMessageStore.isUnread(convoId)
 
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable { onPeerChatClick(convoId, peerId) }
+                                    .clickable {
+                                        BotMessageStore.markAsRead(convoId)
+                                        onPeerChatClick(convoId, peerId)
+                                    }
                                     .padding(4.dp)
                             ) {
                                 Box(
-                                    modifier = Modifier
-                                        .size(62.dp)
-                                        .border(
-                                            width = 2.dp,
-                                            brush = Brush.sweepGradient(
-                                                listOf(
-                                                    LuxuryGold,
-                                                    LuxuryRose,
-                                                    Color(0xFF9D4EDD),
-                                                    LuxuryGold
-                                                )
-                                            ),
-                                            shape = CircleShape
-                                        )
-                                        .padding(3.dp)
-                                        .clip(CircleShape)
+                                    modifier = Modifier.size(62.dp)
                                 ) {
-                                    AsyncImage(
-                                        model = peerProfile?.imageUrl ?: "",
-                                        contentDescription = firstName,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .border(
+                                                width = 2.dp,
+                                                brush = Brush.sweepGradient(
+                                                    if (hasUnread) {
+                                                        listOf(
+                                                            LuxuryRose,
+                                                            Color(0xFFFF5E7E),
+                                                            LuxuryGold,
+                                                            LuxuryRose
+                                                        )
+                                                    } else {
+                                                        listOf(
+                                                            LuxuryGold,
+                                                            LuxuryRose,
+                                                            Color(0xFFFFB03A),
+                                                            LuxuryGold
+                                                        )
+                                                    }
+                                                ),
+                                                shape = CircleShape
+                                            )
+                                            .padding(3.dp)
+                                            .clip(CircleShape)
+                                    ) {
+                                        AsyncImage(
+                                            model = peerProfile?.imageUrl ?: "",
+                                            contentDescription = firstName,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+                                    if (hasUnread) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(14.dp)
+                                                .align(Alignment.TopEnd)
+                                                .clip(CircleShape)
+                                                .background(LuxuryRose)
+                                                .border(2.dp, colors.cardContainer, CircleShape)
+                                        )
+                                    }
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = firstName,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
+                                    fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.SemiBold,
                                     color = colors.textPrimary
                                 )
                             }
@@ -758,9 +858,10 @@ private fun ChatsTab(
                 val peerId = convoId.split("_").firstOrNull { it != effectiveUid } ?: ""
                 val peerProfile = AiBotConfig.getBotProfile(peerId, userGender)
                     ?: SeedProfiles.getProfileById(peerId)
-                val isAi = AiBotConfig.isAiModel(peerId)
                 val lastMsg = BotMessageStore.lastMessage(convoId)
                 val hasMessages = lastMsg != null
+                val unreadCount = BotMessageStore.unreadCount(convoId)
+                val isUnread = unreadCount > 0
                 val preview = if (hasMessages) {
                     lastMsg!!.content
                 } else {
@@ -768,13 +869,25 @@ private fun ChatsTab(
                 }
 
                 Card(
-                    onClick = { onPeerChatClick(convoId, peerId) },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = colors.cardContainer),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.cardBorderSubtle),
+                    onClick = {
+                        BotMessageStore.markAsRead(convoId)
+                        onPeerChatClick(convoId, peerId)
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isUnread) {
+                            if (colors.isDark) Color(0xFF231B2A) else Color(0xFFFFF0F5)
+                        } else {
+                            colors.cardContainer
+                        }
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = if (isUnread) 1.5.dp else 1.dp,
+                        color = if (isUnread) LuxuryRose.copy(alpha = 0.85f) else colors.cardBorderSubtle
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp)
+                        .padding(vertical = 5.dp)
                 ) {
                     Row(
                         modifier = Modifier
@@ -782,18 +895,37 @@ private fun ChatsTab(
                             .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Avatar
+                        // Avatar with unread badge indicator
                         Box(
-                            modifier = Modifier
-                                .size(50.dp)
-                                .clip(CircleShape)
+                            modifier = Modifier.size(50.dp)
                         ) {
-                            AsyncImage(
-                                model = peerProfile?.imageUrl ?: "",
-                                contentDescription = peerProfile?.name,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                                    .border(
+                                        width = if (isUnread) 2.dp else 0.dp,
+                                        color = if (isUnread) LuxuryRose else Color.Transparent,
+                                        shape = CircleShape
+                                    )
+                            ) {
+                                AsyncImage(
+                                    model = peerProfile?.imageUrl ?: "",
+                                    contentDescription = peerProfile?.name,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                            if (isUnread) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(13.dp)
+                                        .align(Alignment.TopEnd)
+                                        .clip(CircleShape)
+                                        .background(LuxuryRose)
+                                        .border(2.dp, colors.cardContainer, CircleShape)
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.width(12.dp))
@@ -810,44 +942,73 @@ private fun ChatsTab(
                                 ) {
                                     Text(
                                         text = peerProfile?.name ?: "Chat",
-                                        fontWeight = FontWeight.Bold,
+                                        fontWeight = if (isUnread) FontWeight.ExtraBold else FontWeight.Bold,
                                         fontSize = 15.sp,
                                         color = colors.textPrimary
                                     )
-                                    if (isAi) {
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = if (colors.isDark) Color(0x22FFD700) else Color(0x20D64978)
-                                        ) {
-                                            Text(
-                                                text = "AI",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (colors.isDark) LuxuryGold else Color(0xFF9A2D55),
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
                                 }
                                 Text(
                                     text = if (hasMessages) "Now" else "Connected",
                                     fontSize = 11.sp,
-                                    fontWeight = if (hasMessages) FontWeight.Normal else FontWeight.SemiBold,
-                                    color = if (colors.isDark) LuxuryGold else Color(0xFF9A2D55)
+                                    fontWeight = if (isUnread) FontWeight.Bold else (if (hasMessages) FontWeight.Normal else FontWeight.SemiBold),
+                                    color = if (isUnread) LuxuryRose else (if (colors.isDark) LuxuryGold else Color(0xFF9A2D55))
                                 )
                             }
 
                             Spacer(modifier = Modifier.height(4.dp))
 
-                            Text(
-                                text = preview,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (hasMessages) colors.textSecondary else (if (colors.isDark) LuxuryGold.copy(alpha = 0.92f) else LuxuryRose),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontSize = 13.sp,
-                                fontWeight = if (hasMessages) FontWeight.Normal else FontWeight.Medium
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = preview,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (isUnread) {
+                                        colors.textPrimary
+                                    } else if (hasMessages) {
+                                        colors.textSecondary
+                                    } else {
+                                        if (colors.isDark) LuxuryGold.copy(alpha = 0.92f) else LuxuryRose
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isUnread) FontWeight.SemiBold else (if (hasMessages) FontWeight.Normal else FontWeight.Medium),
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+
+                                if (isUnread) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = LuxuryRose,
+                                        shadowElevation = 2.dp
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color.White)
+                                            )
+                                            if (unreadCount > 1) {
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "$unreadCount",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -878,7 +1039,7 @@ private fun ChatsTab(
                             modifier = Modifier
                                 .size(50.dp)
                                 .clip(CircleShape)
-                                .background(if (colors.isDark) Color(0xFF24143D) else Color(0xFFEDE8F5)),
+                                .background(if (colors.isDark) Color(0xFF26262B) else Color(0xFFEDE8F5)),
                             contentAlignment = Alignment.Center
                         ) {
                             Text("👤", fontSize = 22.sp)
@@ -982,7 +1143,7 @@ private fun ReceivedTab(
                                 .border(
                                     width = 2.dp,
                                     brush = Brush.sweepGradient(
-                                        listOf(LuxuryGold, LuxuryRose, Color(0xFF9D4EDD), LuxuryGold)
+                                        listOf(LuxuryGold, LuxuryRose, Color(0xFFFFB03A), LuxuryGold)
                                     ),
                                     shape = CircleShape
                                 )
@@ -1079,7 +1240,7 @@ private fun ReceivedTab(
                             shape = RoundedCornerShape(20.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (colors.isDark) LuxuryGold else LuxuryRose,
-                                contentColor = if (colors.isDark) Color(0xFF16111E) else Color.White
+                                contentColor = if (colors.isDark) Color(0xFF141416) else Color.White
                             ),
                             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
                         ) {

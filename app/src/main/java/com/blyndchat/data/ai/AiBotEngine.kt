@@ -48,15 +48,27 @@ object AiBotEngine {
     )
 
     private val zaraGreetings = listOf(
-        "Assalamu alaikum! 🌙 I'm Zara. I loved reading your profile. What's your favorite place you've ever visited?",
-        "Hello! I'm Zara 🏗️ I believe the best conversations start with food — what's your all-time favorite dish? 😊",
-        "Hi! It's so nice to connect with you! Tell me, what's one thing that always makes your day better? ✨"
+        "hey im zara.. hows your day going",
+        "hey there.. what you up to today",
+        "hi zara here.. how was your week"
     )
 
     fun getGreeting(botId: String): String = "hi"
 
+    private fun formatZaraCasual(text: String): String {
+        return text.replace(Regex("[\\p{So}\\p{Sk}\\p{Sm}\\p{Sc}\\p{Cn}\\p{Cs}\uD83C-\uDBFF\uDC00-\uDFFF]"), "")
+            .replace(Regex("[:;=]-?[)D(POp/\\]\\[{}*^~_]"), "")
+            .replace("!", "")
+            .replace(";", "")
+            .replace("\"", "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .trimEnd('.')
+            .lowercase()
+    }
+
     // =========================================================================
-    // MAIN RESPONSE GENERATOR (Persona-driven: Aria = as is, Maya = casual, Zara = caring)
+    // MAIN RESPONSE GENERATOR (Persona-driven: Aria = as is, Maya = casual, Zara = casual short)
     // =========================================================================
 
     fun generateReply(
@@ -67,12 +79,13 @@ object AiBotEngine {
     ): String {
         val lower = userMessage.trim().lowercase()
 
-        return when (botId) {
+        val reply = when (botId) {
             AiBotConfig.BOT_ID_ARIA -> generateAriaDryReply(botId, lower)
             AiBotConfig.BOT_ID_MAYA -> generateMayaCasualReply(botId, lower)
             AiBotConfig.BOT_ID_ZARA -> generateZaraCaringReply(botId, lower)
             else -> generateCasualSeedReply(botId, lower)
         }
+        return if (botId == AiBotConfig.BOT_ID_ZARA) formatZaraCasual(reply) else reply
     }
 
     /**
@@ -219,27 +232,27 @@ object AiBotEngine {
     }
 
     /**
-     * Bot 3 (Zara / Aarav): Persona "caring"
-     * Warm, deeply caring, empathetic, supportive, sweet, emotionally attentive.
+     * Bot 3 (Zara / Aarav): Persona casual short texting
+     * Short, no smileys, no proper punctuation, natural human chat style.
      */
     private fun generateZaraCaringReply(botId: String, lower: String): String {
         if (lower in listOf("hi", "hey", "hello", "yo", "sup", "heyy", "hii", "hey there", "salaam", "assalamu alaikum")) {
             return pickFresh(botId, listOf(
-                "Hello! 🌸 I hope you're having a gentle and wonderful day!",
-                "Hi there! It's so lovely to hear from you. How are you feeling today? ✨",
-                "Assalamu alaikum! Wishing you peace and warmth today 😊",
-                "Hey! So happy you messaged. How has your morning been? 🌸"
+                "hey.. hows your day going",
+                "hi there.. how are you",
+                "hey.. hows it going today",
+                "hey whats up"
             ))
         }
 
         if (lower.contains("how are") || lower.contains("what's up") || lower.contains("whats up") ||
             lower.contains("wyd") || lower.contains("doing") || lower.contains("hru") || lower.contains("feeling")) {
             return pickFresh(botId, listOf(
-                "I was just taking a quiet breather after a busy day! How has today been treating you? I hope not too stressful 🌸",
-                "Just relaxing with a cup of tea. Please tell me you took some time to rest and nourish yourself today? 😊",
-                "Winding down for the evening. Please make sure you stay hydrated and get plenty of restful sleep tonight 💛",
-                "I'm doing well, thank you for asking! But more importantly, how are you feeling inside today? ✨",
-                "Having a calm moment. I hope something made you smile today! How was your day? 🌸"
+                "just wrapped up work pretty tired wbu",
+                "chilling with some tea.. how was your day",
+                "doing good just relaxing hbu",
+                "not much just resting after a long day wbu",
+                "im good.. hope work wasnt too crazy today"
             ))
         }
 
@@ -247,64 +260,62 @@ object AiBotEngine {
             lower.contains("bad day") || lower.contains("sad") || lower.contains("sick") ||
             lower.contains("headache") || lower.contains("tough") || lower.contains("hard day")) {
             return pickFresh(botId, listOf(
-                "Oh no, I'm so sorry to hear that. Please take a deep breath and give yourself permission to rest. You've done enough for today 🌸",
-                "That sounds so exhausting. Make yourself a warm cup of tea and just put your feet up. I'm right here if you want to vent 💛",
-                "Please don't be too hard on yourself. Some days are just heavy, and that's okay. Sending you a big warm hug ✨",
-                "Remember your health and peace of mind come first before everything else. Please take care of yourself tonight 😊"
+                "take some rest.. dont stress too much",
+                "long day huh.. make sure u get good sleep",
+                "exhausting days suck.. take it easy tonight",
+                "drink some water and just chill tonight"
             ))
         }
 
         if (lower.contains("where") && (lower.contains("live") || lower.contains("from") || lower.contains("stay") || lower.contains("city"))) {
             return pickFresh(botId, listOf(
-                "I'm in Mumbai! Walking along Bandra Bandstand in the evening with the sea breeze is so peaceful 🌊 Where are you based?",
-                "Mumbai is home for me! It has such a vibrant soul. Where do you call home? 🌸",
-                "I live in Mumbai! Born and raised by the sea. Which city holds your heart? ✨"
+                "mumbai.. bandra mostly wbu",
+                "live in mumbai.. where u from",
+                "mumbai based.. u live here too"
             ))
         }
 
         if (lower.contains("work") || lower.contains("job") || lower.contains("do you do") || lower.contains("profession")) {
             return pickFresh(botId, listOf(
-                "I'm an Architect! Designing serene, thoughtful spaces where people feel truly at home brings me so much happiness 🏛️ What kind of work keeps you busy?",
-                "Architecture is my creative world! Designing sustainable, soulful spaces. What do you do for work? ✨",
-                "I design buildings and cozy spaces! It's demanding but deeply rewarding. What field are you in? I'd love to know more 🌸"
+                "architect.. mostly designing spaces wbu",
+                "i do architecture stuff.. site visits mostly hbu",
+                "design and architecture.. pretty busy lately wbu"
             ))
         }
 
         if (lower.contains("food") || lower.contains("eat") || lower.contains("biryani") || lower.contains("dinner") ||
             lower.contains("lunch") || lower.contains("chai") || lower.contains("tea") || lower.contains("coffee")) {
             return pickFresh(botId, listOf(
-                "Food made with love and shared with warmth is so healing 🍲 Have you had something nourishing and warm to eat today? 😊",
-                "Homemade biryani and a warm cup of herbal tea are my greatest comforts! What is your favorite comfort food when you need care? 🌸",
-                "Please make sure you eat well and don't skip meals, even when life gets hectic! What did you have today? ✨"
+                "biryani always.. craving some rn",
+                "cutting chai near the sea is elite wbu",
+                "had some good food earlier.. did u eat"
             ))
         }
 
         if (lower.contains("cute") || lower.contains("pretty") || lower.contains("beautiful") ||
             lower.contains("nice") || lower.contains("hot") || lower.contains("gorgeous") || lower.contains("sweet") || lower.contains("kind")) {
             return pickFresh(botId, listOf(
-                "Aww, thank you so much! That is such a graceful and kind thing to say 🌸 You truly made my heart feel warm ✨",
-                "You are so genuinely kind and sweet. Thank you, that made my evening so much brighter 😊💛",
-                "That is so gentle of you. You have such a comforting and lovely presence ✨"
+                "haha thanks thats sweet of you",
+                "aw thank you.. made my evening",
+                "thanks appreciate that"
             ))
         }
 
         if (lower.contains("meet") || lower.contains("date") || lower.contains("number") ||
             lower.contains("insta") || lower.contains("hangout") || lower.contains("coffee")) {
             return pickFresh(botId, listOf(
-                "That is very sweet of you! I really value forming an emotional connection and understanding each other's hearts first 🌸 Tell me more about what brings you peace?",
-                "I love how open you are! Let's take our time and get to know each other deeply here first ✨ How has your week been?",
-                "I love the intimacy and depth of chatting here on Blynd Chat first 🌸 Tell me, what's a dream that's close to your heart?"
+                "lets chat here a bit first.. tell me more about u",
+                "down to hangout once we get to know each other better",
+                "haha slow down.. what u up to this weekend though"
             ))
         }
 
         return pickFresh(botId, listOf(
-            "I really appreciate how open and genuine you are. It's so rare and lovely to find 🌸",
-            "I'm always so happy when a message from you pops up! It makes my day so much brighter ✨",
-            "Take all the time you need, absolutely no pressure. I hope you're having a calm evening 💛",
-            "That sounds wonderful! I'm so happy for you, you truly deserve moments of joy like that 😊",
-            "You have such a comforting and grounded presence. I truly enjoy our conversations 🌸",
-            "How did that make you feel? I hope your heart feels a little lighter now ✨",
-            "Sending you lots of warm thoughts today! You are doing better than you know 💛"
+            "haha nice.. what you up to tonight",
+            "sounds good.. how was the rest of your day",
+            "fair enough.. what else you into",
+            "im pretty chill today.. tell me more",
+            "thats cool.. busy week for you"
         ))
     }
 
@@ -346,14 +357,14 @@ object AiBotEngine {
                 return when (botId) {
                     AiBotConfig.BOT_ID_ARIA -> "Yesss!! Team Chai forever! ☕ Masala chai with ginger is my absolute daily fuel. You definitely passed the test! What's your favorite kind?"
                     AiBotConfig.BOT_ID_MAYA -> "Ayy chai fan! I love a good cutting chai, though coffee keeps my code running at 2 AM haha 😂"
-                    AiBotConfig.BOT_ID_ZARA -> "Cutting chai near Marine Drive is pure bliss! 🍵 You have wonderful taste."
+                    AiBotConfig.BOT_ID_ZARA -> "cutting chai near marine drive is elite wbu"
                     else -> "Chai is the best! ☕"
                 }
             } else if (userMsg.contains("coffee")) {
                 return when (botId) {
                     AiBotConfig.BOT_ID_ARIA -> "A coffee person! Okay okay, I won't hold it against you 😄 As long as we can still cafe hop together in Indiranagar! What's your go-to order?"
                     AiBotConfig.BOT_ID_MAYA -> "Coffee gang!! ☕ Black coffee or iced latte? I basically survive on iced Americanos when debugging!"
-                    AiBotConfig.BOT_ID_ZARA -> "I enjoy a rich South Indian filter coffee too! The aroma is just unmatched ✨"
+                    AiBotConfig.BOT_ID_ZARA -> "filter coffee hits different wbu"
                     else -> "Coffee is great too! ☕"
                 }
             } else if (userMsg.contains("both")) {
@@ -386,7 +397,7 @@ object AiBotEngine {
         // If bot asked: "favorite dish" or "food"
         if (lastBotMsg.contains("favorite dish") && (userMsg.contains("biryani") || userMsg.contains("dosa") || userMsg.contains("pizza") || userMsg.contains("pasta"))) {
             return when (botId) {
-                AiBotConfig.BOT_ID_ZARA -> "Mmm now you're making me hungry! That's an elite choice. Biryani is basically an emotion for me 🤤 Do you cook it or order in?"
+                AiBotConfig.BOT_ID_ZARA -> "biryani anytime.. craving some rn"
                 AiBotConfig.BOT_ID_ARIA -> "Yumm! Food is the quickest way to my heart honestly 😍 We definitely have compatible taste!"
                 AiBotConfig.BOT_ID_MAYA -> "10/10 choice! Food is basically my second love after tech 😂 You have great taste!"
                 else -> "That sounds delicious! 🤤"
@@ -417,9 +428,9 @@ object AiBotEngine {
                     "Maya here! 👋 Don't wear it out haha. What should I call you?"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "I'm Zara Khan 🌸 An architect based in Mumbai. Such a pleasure to connect with you!",
-                    "My name is Zara! Zara Khan 🏛️ I design spaces and obsess over good biryani. And what is your name?",
-                    "I'm Zara 😊 Lovely to meet you! Tell me, what should I call you?"
+                    "im zara.. architect based in mumbai wbu",
+                    "zara khan.. what should i call u",
+                    "im zara.. nice to meet u"
                 )
                 else -> listOf("I'm happy to chat with you! What's your name?")
             }
@@ -441,9 +452,9 @@ object AiBotEngine {
                     "I'm 24! What's your age? 😊"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "I'm 27! Old enough to appreciate peace and architecture, young enough for spontaneous road trips 🌙 You?",
-                    "27! Time flies so fast. How old are you? 🌸",
-                    "I'm 27 years old! What about you? ✨"
+                    "27 wbu",
+                    "im 27",
+                    "turned 27 recently hbu"
                 )
                 else -> listOf("I'm in my mid-twenties! How about you?")
             }
@@ -468,9 +479,9 @@ object AiBotEngine {
                     "Hyderabad is where I'm at! Which city do you call home? 🏙️"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "I'm in Mumbai! Born and raised here 🌊 Nothing beats walking along Bandra Bandstand or Marine Drive in the evening. Where are you from?",
-                    "Mumbai, the city of dreams! 🌇 The sea breeze and the monsoon here are magical. Where are you currently living?",
-                    "I'm based in Mumbai! 🏛️ Have you ever visited the city? Where are you located?"
+                    "mumbai.. bandra mostly wbu",
+                    "live in mumbai.. where u from",
+                    "based in mumbai.. born and raised"
                 )
                 else -> listOf("I live in India! Which city are you based in?")
             }
@@ -494,9 +505,9 @@ object AiBotEngine {
                     "I code for a living! Backend engineering mostly. What field are you working in? 🚀"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "I'm an Architect! I design residential spaces and boutique cafes 🏛️ Every building tells a story. What do you do for a living?",
-                    "Architecture is my passion! Currently working on a sustainable housing project in Navi Mumbai 🌿 What field are you in?",
-                    "I design spaces — from cozy homes to modern buildings! What kind of work keeps you busy? ✨"
+                    "architect.. mostly design work wbu",
+                    "i do architecture stuff.. site visits mostly hbu",
+                    "design and architecture.. pretty busy lately wbu"
                 )
                 else -> listOf("I love what I do! What kind of work do you do?")
             }
@@ -520,9 +531,9 @@ object AiBotEngine {
                     "LOL! Beep boop... ERROR 404: Robot not found 🤖 Just kidding haha, totally real human here! What made you suspicious? 😂"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "Haha, definitely real! Unless architects have been replaced by robots and nobody told me yet 🏗️😄 Why, did I say something too witty?",
-                    "I promise you there's a real person behind this screen enjoying a cup of tea right now 🌸 What made you think that?",
-                    "Haha that's flattering! Real human here, just enjoying a good conversation ✨"
+                    "haha nah 100% real why u ask",
+                    "definitely real just texting from mumbai",
+                    "not a bot haha why"
                 )
                 else -> listOf("Haha I'm definitely real! What made you ask? 😄")
             }
@@ -546,9 +557,9 @@ object AiBotEngine {
                     "Not much, just chilling with some music! What's happening on your end? 😄"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "Just finished reviewing some 3D blueprints and watching the sunset from my balcony 🌇 What are you up to?",
-                    "Having some tea and catching up on reading! How has your day been? 🌸",
-                    "Just relaxing after a busy day on site! What are you doing right now? ✨"
+                    "just wrapped up work pretty tired wbu",
+                    "having tea and relaxing.. what u up to",
+                    "just resting after a long day hbu"
                 )
                 else -> listOf("Just relaxing and chatting with you! What are you up to?")
             }
@@ -573,9 +584,9 @@ object AiBotEngine {
                     "Haha bold! Let's build up some rapport first 😄 Tell me your best quality and I'll consider it!"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "I appreciate the honesty and directness! 🌸 But I prefer getting to know someone properly before meeting up. Tell me more about your values first?",
-                    "That's sweet! Let's see how our conversations flow here first 💫 Good things take a little time, don't you think?",
-                    "Haha, let's take it step by step 😊 A cup of chai might happen if we keep connecting like this!"
+                    "lets chat here first.. tell me more about u",
+                    "down to hangout once we get to know each other better",
+                    "haha slow down.. what u up to this weekend though"
                 )
                 else -> listOf("Let's get to know each other a bit more here first! 😊")
             }
@@ -599,9 +610,9 @@ object AiBotEngine {
                     "Haha nice try! Let's keep the banter going right here first 😂"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "I prefer to keep my contact private and focus on meaningful conversations here first 🌸 Tell me more about yourself?",
-                    "Let's get to know each other a bit more here on the app first ✨ What are your hobbies?",
-                    "I don't give out my number right away, but I'm really enjoying our chat here 😊"
+                    "lets talk here for a bit first",
+                    "prefer chatting here for now.. tell me more about u",
+                    "not giving number yet haha let's chat here"
                 )
                 else -> listOf("I prefer chatting here on Blynd Chat for now! Let's get to know each other first 😊")
             }
@@ -627,9 +638,9 @@ object AiBotEngine {
                     "Aww shucks! 🙈 You're pretty charming yourself, you know that?"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "Thank you so much! That is such a graceful compliment 🌸 You made my evening brighter.",
-                    "You are very kind and gracious with your words ✨ Thank you!",
-                    "MashaAllah, that is so sweet of you to say 😊 Thank you!"
+                    "haha thanks thats sweet of you",
+                    "aw thank you.. made my evening",
+                    "thanks appreciate that"
                 )
                 else -> listOf("Aww thank you! That's so kind of you 😊")
             }
@@ -653,9 +664,9 @@ object AiBotEngine {
                     "Single! Looking for my partner-in-crime. What about you? 😄"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "Yes, I am single! I value depth, mutual respect, and emotional maturity 🌙 What are you looking for in a partner?",
-                    "I am single! Looking for something meaningful and lasting. Tell me, what kind of person are you looking for? 🌸",
-                    "Single! Ready to connect with someone genuine. What about yourself? ✨"
+                    "yeah single wbu",
+                    "im single.. what u looking for here",
+                    "single.. just looking for someone genuine"
                 )
                 else -> listOf("Yes, I'm single! What about you?")
             }
@@ -666,7 +677,7 @@ object AiBotEngine {
             return when (botId) {
                 AiBotConfig.BOT_ID_ARIA -> listOf("I'm 5'5\"! Pretty average, but tall enough to reach the top shelf if I stand on my toes 😄 How tall are you?")
                 AiBotConfig.BOT_ID_MAYA -> listOf("I'm 5'3\"! Fun-sized and proud of it 😂 How tall are you?")
-                AiBotConfig.BOT_ID_ZARA -> listOf("I'm 5'6\"! A comfortable height for an architect who spends time on construction sites 🏗️ How tall are you?")
+                AiBotConfig.BOT_ID_ZARA -> listOf("5'6 wbu")
                 else -> listOf("I'm average height! What about you?")
             }
         }
@@ -676,7 +687,7 @@ object AiBotEngine {
             return when (botId) {
                 AiBotConfig.BOT_ID_ARIA -> listOf("I'm Hindu (Brahmin), though I consider myself quite modern and open-minded ✨ What about you?")
                 AiBotConfig.BOT_ID_MAYA -> listOf("I'm Hindu (Reddy)! Family is traditional, but I'm pretty chill and progressive 😄 What's your background?")
-                AiBotConfig.BOT_ID_ZARA -> listOf("I'm Muslim (Khan)! Proud of my heritage and culture 🌙 Tell me about your background?")
+                AiBotConfig.BOT_ID_ZARA -> listOf("muslim khan wbu")
                 else -> listOf("I come from a loving, close-knit family! What about you?")
             }
         }
@@ -686,7 +697,7 @@ object AiBotEngine {
             return when (botId) {
                 AiBotConfig.BOT_ID_ARIA -> listOf("I make 12 LPA as a UX designer! Enough for good chai, books, and trips to the hills 😄 What do you do?")
                 AiBotConfig.BOT_ID_MAYA -> listOf("18 LPA in backend engineering! Mostly goes into tech gadgets and food delivery though 😂 You?")
-                AiBotConfig.BOT_ID_ZARA -> listOf("I earn 15 LPA from architecture and design consulting 🏛️ What about your career?")
+                AiBotConfig.BOT_ID_ZARA -> listOf("15 lpa from architecture consulting wbu")
                 else -> listOf("I do well enough to be comfortable! What about you?")
             }
         }
@@ -705,9 +716,9 @@ object AiBotEngine {
                     "A cup of coffee and some good music — that's my ideal workday vibe 🎧 You?"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "Cutting chai by Marine Drive with the sea breeze... there's nothing quite like it 🍵 Have you experienced it?",
-                    "Filter coffee or Irani chai — Mumbai has the best of both! What do you enjoy most? ✨",
-                    "A good cup of tea brings people together so effortlessly 🌸"
+                    "cutting chai near the sea is elite wbu",
+                    "filter coffee mostly wbu",
+                    "good tea makes any day better"
                 )
                 else -> listOf("Chai or coffee always makes for a great conversation! ☕")
             }
@@ -731,9 +742,9 @@ object AiBotEngine {
                     "I survive on spicy ramen and pizza when coding crunch hits 😂 What do you crave the most?"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "Mumbai street food is legendary! Vada pav, pav bhaji, kebabs... 🤤 And my homemade biryani is a family treasure! Do you enjoy cooking?",
-                    "I believe good food and good architecture both require love and patience ✨ What's the best meal you've had recently?",
-                    "Food is an emotion! I love hosting dinners for friends. What's your all-time favorite meal? 🌸"
+                    "biryani always.. craving some rn",
+                    "mumbai street food is the best.. vada pav and pav bhaji",
+                    "good food is elite.. what u like to eat"
                 )
                 else -> listOf("I love good food! What's your favorite meal?")
             }
@@ -756,9 +767,9 @@ object AiBotEngine {
                     "I can't code without my headphones on! What genre gets you in the zone? 🎧"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "Sufi music speaks directly to my soul 🎶 Nusrat Fateh Ali Khan, Abida Parveen, and Coke Studio are timeless. What touches your soul in music?",
-                    "Old ghazals and soulful Bollywood tracks are my favorites! Arijit Singh's unplugged tracks are pure gold ✨ Who do you listen to?",
-                    "Music has an incredible way of evoking memories. What song always makes you feel good? 🌸"
+                    "sufi and coke studio mostly wbu",
+                    "old classics and arijit unplugged hbu",
+                    "indie acoustic mostly"
                 )
                 else -> listOf("I love music! What's your favorite song right now? 🎶")
             }
@@ -781,9 +792,9 @@ object AiBotEngine {
                     "Binge-watching thrillers on Netflix with popcorn is my ideal Sunday night! What's your favorite show? 🍿"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "The Pursuit of Happyness and Haider are masterpieces in storytelling 🎭 I love movies with emotional depth. What's your favorite genre?",
-                    "Christopher Nolan for mind-benders, and classic 90s cinema for comfort! What movie can you rewatch anytime? 🎬",
-                    "A good story well-told is pure magic. What's the best series you've seen recently? 🌸"
+                    "love good drama or thriller wbu",
+                    "nolan films or comfort cinema hbu",
+                    "watched anything good lately"
                 )
                 else -> listOf("I love movies! What's the best one you've seen recently? 🎬")
             }
@@ -806,9 +817,9 @@ object AiBotEngine {
                     "Beach or mountains? I say wherever there's great food and adventure! What about you? 🚗"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "Rajasthan has the most breathtaking architecture! Forts, palaces, and sunset views 🏰 I dream of visiting Istanbul and Andalusia. Where have you traveled?",
-                    "I love travel that immerses you in history and culture. What's the most memorable place you've ever been to? 🌸",
-                    "A peaceful walk along a quiet beach or exploring an ancient city — both are magical. Which do you prefer? 🌊"
+                    "rajasthan forts are amazing.. want to visit istanbul wbu",
+                    "love quiet beaches and old cities hbu",
+                    "where do u want to travel next"
                 )
                 else -> listOf("I love exploring new places! Where's your favorite spot to visit?")
             }
@@ -831,9 +842,9 @@ object AiBotEngine {
                     "Weekends are for gaming, food, and long drives! What's your idea of a fun time? 🚀"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "Calligraphy, architectural sketching, reading poetry, and sunset-chasing by Marine Drive 🌅 What hobbies are you passionate about?",
-                    "Visiting heritage sites, cooking biryani for family, and landscape photography 📸 What keeps you inspired?",
-                    "I love deep conversations over tea and exploring art galleries. What do you do in your free time? 🌸"
+                    "sketching reading and finding good chai spots wbu",
+                    "photography and exploring old streets hbu",
+                    "mostly cafe hopping and sketching"
                 )
                 else -> listOf("I love creative hobbies and exploring new things! What about you?")
             }
@@ -855,9 +866,9 @@ object AiBotEngine {
                     "Yo! How's your day treating you? 🎉"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "Hello! 😊 Such a pleasure to connect with you!",
-                    "Hi there! Hope you're having a wonderful day 🌸",
-                    "Hello! It's lovely to hear from you ✨ How are you?"
+                    "hey",
+                    "hey hows your day going",
+                    "hi whats up"
                 )
                 else -> listOf("Hello! How are you doing today? 😊")
             }
@@ -896,9 +907,9 @@ object AiBotEngine {
                     "Pretty awesome! Energy is high today. What have you been up to? 😄"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "Alhamdulillah doing wonderfully! Peaceful day here in Mumbai 🌸 How has your day treated you?",
-                    "I'm doing very well, thank you for asking! Just finished a site visit. How about you? ✨",
-                    "Doing great! Ready for some relaxing evening conversations. How are you feeling today? 😊"
+                    "doing good just finished a site visit wbu",
+                    "im good.. pretty chill day here in mumbai how about u",
+                    "doing well.. how was your day"
                 )
                 else -> listOf("I'm doing great, thank you! How are you doing? 😊")
             }
@@ -920,9 +931,9 @@ object AiBotEngine {
                     "Hehe you're easy to talk to! What else is on your mind? 😄"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "A shared laugh is the beginning of a good friendship 😊 What brings a smile to your face most often?",
-                    "Haha I love positive energy! Tell me more about your week 🌸",
-                    "Hehe it's so refreshing talking to you ✨ What else are you interested in?"
+                    "haha nice.. what you up to tonight",
+                    "haha true.. how was your week",
+                    "haha you're fun to talk to"
                 )
                 else -> listOf("Haha glad that made you smile! What else is up? 😄")
             }
@@ -965,9 +976,9 @@ object AiBotEngine {
                     "Catch you later! This was really fun 🎉"
                 )
                 AiBotConfig.BOT_ID_ZARA -> listOf(
-                    "Allah hafiz! It was so wonderful talking to you 🌙✨ Take care!",
-                    "Goodbye for now! Looking forward to our next conversation 🌸",
-                    "Take care of yourself! Talk soon ✨"
+                    "bye take care",
+                    "talk soon",
+                    "cya take care"
                 )
                 else -> listOf("Bye! Talk to you soon! 😊")
             }
@@ -999,12 +1010,11 @@ object AiBotEngine {
                 "Good question! I'm curious what YOUR take on that is before I reveal all my secrets 😂"
             )
             AiBotConfig.BOT_ID_ZARA -> listOf(
-                "What a graceful and meaningful question! 🌸 As an architect, I look for balance, harmony, and lasting beauty in everything. What does it mean to you?",
-                "That touches on something very important! I believe staying grounded and showing gratitude brings the most fulfillment in life 🌙 What are your thoughts?",
-                "I love questions that go beneath the surface ✨ In my view, it's about building trust and understanding. What led you to ask that?",
-                "Such a reflective question! I feel the most beautiful things in life require patience and care. How do you see it? 🏛️",
-                "A wonderful question to ponder over evening tea ☕ I think staying true to yourself is what matters most. Do you agree? 🌸",
-                "I really admire someone who asks thoughtful questions! Tell me your perspective first, I'd love to listen 😊"
+                "good question.. i think staying grounded matters most wbu",
+                "honestly balance and trust.. what do u think",
+                "deep question haha.. tell me your take first",
+                "staying true to yourself matters most",
+                "patience and care.. how do u see it"
             )
             else -> listOf(
                 "That's a great question! I think it really depends on the perspective. What do you think?",
@@ -1032,10 +1042,10 @@ object AiBotEngine {
                 "Don't leave me hanging! What's the most exciting thing you did recently? 🚀"
             )
             AiBotConfig.BOT_ID_ZARA -> listOf(
-                "😊 I'd love to hear more from you! What is something that you feel truly passionate about?",
-                "Haha, you're keeping it mysterious! Tell me, what's a place you've always dreamed of visiting? 🌙",
-                "Come, let's have a real conversation! What brings you joy in your daily routine? 🌸",
-                "Tell me a little about your passions and goals in life ✨"
+                "tell me more haha don't be shy",
+                "you're quiet today.. what u up to",
+                "come on tell me something interesting",
+                "tell me a bit about yourself"
             )
             else -> listOf("Tell me more about yourself! What do you enjoy doing? 😊")
         }
@@ -1064,12 +1074,11 @@ object AiBotEngine {
                 "Okay I'm intrigued! Keep talking, don't stop now 👀"
             )
             AiBotConfig.BOT_ID_ZARA -> listOf(
-                "That's beautiful! I really appreciate people who can express themselves so well 🌸",
-                "Hmm, very interesting perspective! Tell me more about your thoughts on that 🌙",
-                "I find that fascinating! You seem like a genuinely thoughtful person ✨",
-                "That sounds wonderful! What inspired you to take that path? 🏗️",
-                "How wonderful! I think we'd have such pleasant conversations over a hot cup of tea ☕",
-                "I love how comfortable this conversation feels! Tell me more about yourself 💫"
+                "makes sense.. what else u into",
+                "interesting.. tell me more",
+                "thats cool.. how was the rest of your day",
+                "fair enough.. what you up to tonight",
+                "sounds good.. busy week for you"
             )
             else -> listOf(
                 "That's really interesting! Tell me more 😊",

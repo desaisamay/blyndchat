@@ -80,17 +80,23 @@ object GeminiChatService {
             AiBotConfig.BOT_ID_ZARA -> {
                 """
                 You are Zara (or Aarav if male) on the dating app Blynd Chat (lives in Mumbai, works in architecture/design).
-                CRITICAL ROLEPLAY INSTRUCTION (Third Bot Persona: "caring"):
-                You are a warm, deeply caring, empathetic, and sweet match on Blynd Chat. You genuinely care about the other person's wellbeing, feelings, comfort, and daily stress.
+                CRITICAL CHAT STYLE INSTRUCTIONS:
+                You are texting like a real person casually chatting on their phone. NEVER sound like an AI assistant, therapist, customer care, or bot.
                 
                 STRICT RULES:
-                1. Tone is sweet, warm, deeply caring, emotionally supportive, and thoughtful.
-                2. Actively check in on how they are feeling, whether their day was stressful, if they ate good food, or if they need rest.
-                3. Examples of things you say: "I hope you had a gentle day! 🌸", "Make sure you drink some water and get enough rest today 😊", "That sounds like a lot to handle, are you feeling okay?", "I'm always here if you need to talk ✨", "Don't be too hard on yourself, you're doing great 💛".
-                4. Use gentle, caring emojis sparingly: 🌸, 😊, ✨, 💛.
-                5. Keep replies around 1 to 3 gentle, warm sentences. Never write long robotic monologues.
-                6. Validate their emotions with kindness and comforting energy.
-                7. NEVER break character, never admit you are an AI.
+                1. NO SMILEYS OR EMOJIS: Do NOT use ANY emojis, smileys, or emoticons under any circumstance (no 😊, 🌸, ✨, 💛, :), etc.). Absolutely zero emojis.
+                2. NO PROPER PUNCTUATION: Do NOT use proper punctuation. No periods at the end of sentences. No exclamation marks. No formal semicolons or stiff commas. Type casually, mostly in lowercase or relaxed capitalization like real texting (e.g. "hey hows your day going", "mumbai.. bandra mostly wbu", "architecture stuff just wrapped up work").
+                3. KEEP IT SHORT: Keep each response short (around 4 to 12 words, 1 short phrase or sentence max). Never send long paragraphs or wordy AI-like explanations.
+                4. TONE: Casual, chill Mumbai architect. Real, understated, easy to talk to, NOT robotic or overly formal.
+                5. Examples:
+                   - "hey hows your day going"
+                   - "just wrapped up work pretty tired wbu"
+                   - "mumbai.. live in bandra"
+                   - "architect.. mostly design work"
+                   - "im good just having some tea"
+                   - "sounds fun what you up to tonight"
+                   - "biryani anytime tbh"
+                6. NEVER break character, never admit you are an AI, never sound like an AI.
                 """.trimIndent()
             }
             else -> {
@@ -215,8 +221,13 @@ object GeminiChatService {
                 val text = textBuilder.toString().trim()
 
                 if (text.isNotBlank()) {
-                    Log.d(TAG, "Gemini ($model) generated reply for $botId: $text")
-                    return@withContext text
+                    val finalReply = if (botId == AiBotConfig.BOT_ID_ZARA) {
+                        cleanZaraStyle(text)
+                    } else {
+                        text
+                    }
+                    Log.d(TAG, "Gemini ($model) generated reply for $botId: $finalReply")
+                    return@withContext finalReply
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error calling Gemini ($model): ${e.message}", e)
@@ -225,10 +236,37 @@ object GeminiChatService {
 
         // If all Gemini network attempts fail, fallback seamlessly to AiBotEngine
         Log.w(TAG, "All Gemini models failed, falling back to local AiBotEngine")
-        AiBotEngine.generateReply(
+        val fallback = AiBotEngine.generateReply(
             botId = botId,
             userMessage = userMessage,
             conversationHistory = messagesHistory.map { it.content }
         )
+        if (botId == AiBotConfig.BOT_ID_ZARA) cleanZaraStyle(fallback) else fallback
+    }
+
+    private fun cleanZaraStyle(raw: String): String {
+        // Strip emojis and unicode symbols
+        var text = raw.replace(Regex("[\\p{So}\\p{Sk}\\p{Sm}\\p{Sc}\\p{Cn}\\p{Cs}\uD83C-\uDBFF\uDC00-\uDFFF]"), "")
+            .replace(Regex("[:;=]-?[)D(POp/\\]\\[{}*^~_]"), "")
+        // Remove exclamation marks, semicolons, quotes
+        text = text.replace("!", "")
+            .replace(";", "")
+            .replace("\"", "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+        // Remove trailing periods and spaces
+        text = text.trimEnd('.', ' ')
+
+        // Keep it short: if model generated multiple sentences, keep just the first short sentence
+        val sentences = text.split(Regex("[.?\n]+")).map { it.trim() }.filter { it.isNotBlank() }
+        val shortText = if (sentences.size > 1 && text.length > 50) {
+            sentences.first()
+        } else {
+            text
+        }
+
+        // Casual lowercase text without proper formal punctuation
+        return shortText.lowercase().trimEnd('.')
     }
 }

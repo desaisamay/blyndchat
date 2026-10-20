@@ -305,7 +305,10 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Connect Now CTA Button
+                    val isAccepted = BotInterestStore.isAccepted(p.id)
+                    val isPending = BotInterestStore.isOutgoingPending(p.id)
+
+                    // Connect / Chat CTA Button
                     Button(
                         onClick = {
                             info = null; error = null
@@ -313,30 +316,23 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
                             val receiverId = p.id
                             val uid = store.getUserId()?.takeIf { it.isNotBlank() }
                                 ?: token?.let { JwtUtils.getUserIdFromToken(it) }
-                                ?: if (AiBotConfig.isBot(receiverId)) "user_local" else null
+                                ?: "user_local"
 
-                            if (AiBotConfig.isBot(receiverId)) {
-                                val currentUid = uid ?: "user_local"
-                                scope.launch {
-                                    val convoId = BotMessageStore.conversationId(currentUid, receiverId)
-                                    BotMessageStore.initConversation(convoId)
-                                    if (AiBotConfig.isAiModel(receiverId)) {
-                                        BotInterestStore.acceptRequest(navController.context, receiverId, currentUid)
-                                    }
-                                    info = "Connected ✨"
-                                    delay(600)
-                                    NotificationUtils.showMessageNotification(
-                                        context = navController.context,
-                                        conversationId = convoId,
-                                        peerId = receiverId,
-                                        title = p.name,
-                                        body = "You two are connected ✨ Tap to start the chat!"
-                                    )
-                                }
-                            } else if (token.isNullOrBlank()) {
-                                error = "Please login to send interest"
-                            } else if (uid.isNullOrBlank()) {
-                                error = "Unable to identify user"
+                            if (isAccepted) {
+                                val convoId = BotMessageStore.conversationId(uid, receiverId)
+                                navController.navigate("chat/$convoId/$receiverId")
+                                return@Button
+                            }
+
+                            if (AiBotConfig.isBot(receiverId) || token.isNullOrBlank()) {
+                                BotInterestStore.sendOutgoingRequest(
+                                    context = navController.context,
+                                    peerId = receiverId,
+                                    peerName = p.name,
+                                    effectiveUid = uid,
+                                    delayMs = 12_000L
+                                )
+                                info = "Request sent to ${p.name} ✨"
                             } else {
                                 scope.launch {
                                     runCatching {
@@ -352,14 +348,14 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
                                         )
                                         svc.sendInterest(body)
                                     }.onSuccess {
-                                        info = "Connection sent"
+                                        info = "Request sent to ${p.name} ✨"
                                     }.onFailure {
-                                        error = it.message ?: "Failed to send connection"
+                                        error = it.message ?: "Failed to send request"
                                     }
                                 }
                             }
                         },
-                        enabled = info != "Connection sent",
+                        enabled = !isPending,
                         shape = RoundedCornerShape(26.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.Transparent,
@@ -370,7 +366,7 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
                             .fillMaxWidth()
                             .height(54.dp)
                             .background(
-                                brush = if (info == "Connection sent") {
+                                brush = if (isPending) {
                                     Brush.horizontalGradient(listOf(Color(0xFF2A1B4E), Color(0xFF2A1B4E)))
                                 } else {
                                     Brush.horizontalGradient(
@@ -385,19 +381,19 @@ fun ProfileDetailScreen(navController: NavController, profileId: String?) {
                             )
                             .border(
                                 width = 1.dp,
-                                color = if (info == "Connection sent") Color(0x44FFFFFF) else LuxuryGold.copy(alpha = 0.5f),
+                                color = if (isPending) Color(0x44FFFFFF) else LuxuryGold.copy(alpha = 0.5f),
                                 shape = RoundedCornerShape(26.dp)
                             )
                     ) {
                         Text(
-                            text = if (info == "Connection sent") "Connection Sent ✓"
-                            else if (AiBotConfig.isBot(p.id)) "Connect Now ✨"
-                            else "Send Interest ✨",
+                            text = if (isAccepted) "Chat Now ✨"
+                            else if (isPending) "Request Pending ⏳"
+                            else "Send Request ✨",
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             ),
-                            color = if (info == "Connection sent") Color(0xFFC7B8E0) else Color.White
+                            color = if (isPending) Color(0xFFC7B8E0) else Color.White
                         )
                     }
 

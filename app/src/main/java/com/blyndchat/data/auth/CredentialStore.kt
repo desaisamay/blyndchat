@@ -18,14 +18,74 @@ class CredentialStore(context: Context) {
     )
 
     fun saveCredentials(email: String, passwordHash: String) {
+        val key = email.trim().lowercase()
         prefs.edit()
             .putString(KEY_EMAIL, email)
             .putString(KEY_PASSWORD_HASH, passwordHash)
+            .putString("pass_hash_$key", passwordHash)
             .apply()
     }
 
     fun getEmail(): String? = prefs.getString(KEY_EMAIL, null)
     fun getPasswordHash(): String? = prefs.getString(KEY_PASSWORD_HASH, null)
+    fun getPasswordHashForEmail(email: String): String? {
+        val key = email.trim().lowercase()
+        return prefs.getString("pass_hash_$key", null) ?: prefs.getString(KEY_PASSWORD_HASH, null)
+    }
+
+    fun saveSecurityQuestion(email: String, question: String, answer: String) {
+        val key = email.trim().lowercase()
+        prefs.edit()
+            .putString("security_q_$key", question)
+            .putString("security_a_$key", answer.trim())
+            .putString(KEY_SECURITY_QUESTION, question)
+            .putString(KEY_SECURITY_ANSWER, answer.trim())
+            .apply()
+    }
+
+    fun getSecurityQuestion(email: String? = null): String? {
+        if (!email.isNullOrBlank()) {
+            val key = email.trim().lowercase()
+            prefs.getString("security_q_$key", null)?.let { return it }
+        }
+        return prefs.getString(KEY_SECURITY_QUESTION, null) ?: SecurityQuestions.defaultQuestion
+    }
+
+    fun getSecurityAnswer(email: String? = null): String? {
+        if (!email.isNullOrBlank()) {
+            val key = email.trim().lowercase()
+            prefs.getString("security_a_$key", null)?.let { return it }
+        }
+        return prefs.getString(KEY_SECURITY_ANSWER, null)
+    }
+
+    fun validateSecurityAnswer(email: String?, answer: String): Boolean {
+        val stored = getSecurityAnswer(email)
+        if (stored.isNullOrBlank()) {
+            // Fallback for default demo account or biodata
+            val a = answer.trim()
+            if (a.equals("Bangalore", ignoreCase = true) ||
+                a.equals("Bengaluru", ignoreCase = true) ||
+                a.equals("Belgaum", ignoreCase = true) ||
+                a.equals("Belagavi", ignoreCase = true)) {
+                return true
+            }
+            return false
+        }
+        return SecurityQuestions.matches(stored, answer)
+    }
+
+    fun savePasswordForEmail(email: String, newPassword: String) {
+        val key = email.trim().lowercase()
+        prefs.edit()
+            .putString("plain_pass_$key", newPassword)
+            .apply()
+    }
+
+    fun getPasswordForEmail(email: String): String? {
+        val key = email.trim().lowercase()
+        return prefs.getString("plain_pass_$key", null)
+    }
 
     fun saveToken(token: String) {
         prefs.edit().putString(KEY_TOKEN, token).apply()
@@ -59,7 +119,14 @@ class CredentialStore(context: Context) {
         height: String? = null,
         profession: String? = null,
         conversationIntensity: String? = null,
-        avoidedTopics: String? = null
+        avoidedTopics: String? = null,
+        location: String? = null,
+        religion: String? = null,
+        caste: String? = null,
+        annualIncome: String? = null,
+        phoneNumber: String? = null,
+        securityQuestion: String? = null,
+        securityAnswer: String? = null
     ) {
         val editor = prefs.edit()
         if (name != null) editor.putString(KEY_PENDING_NAME, name) else editor.remove(KEY_PENDING_NAME)
@@ -75,6 +142,13 @@ class CredentialStore(context: Context) {
         if (profession != null) editor.putString(KEY_PENDING_PROFESSION, profession) else editor.remove(KEY_PENDING_PROFESSION)
         if (conversationIntensity != null) editor.putString(KEY_PENDING_CONVERSATION_INTENSITY, conversationIntensity) else editor.remove(KEY_PENDING_CONVERSATION_INTENSITY)
         if (avoidedTopics != null) editor.putString(KEY_PENDING_AVOIDED_TOPICS, avoidedTopics) else editor.remove(KEY_PENDING_AVOIDED_TOPICS)
+        if (location != null) editor.putString(KEY_PENDING_LOCATION, location) else editor.remove(KEY_PENDING_LOCATION)
+        if (religion != null) editor.putString(KEY_PENDING_RELIGION, religion) else editor.remove(KEY_PENDING_RELIGION)
+        if (caste != null) editor.putString(KEY_PENDING_CASTE, caste) else editor.remove(KEY_PENDING_CASTE)
+        if (annualIncome != null) editor.putString(KEY_PENDING_ANNUAL_INCOME, annualIncome) else editor.remove(KEY_PENDING_ANNUAL_INCOME)
+        if (phoneNumber != null) editor.putString(KEY_PENDING_PHONE_NUMBER, phoneNumber) else editor.remove(KEY_PENDING_PHONE_NUMBER)
+        if (securityQuestion != null) editor.putString(KEY_PENDING_SECURITY_QUESTION, securityQuestion) else editor.remove(KEY_PENDING_SECURITY_QUESTION)
+        if (securityAnswer != null) editor.putString(KEY_PENDING_SECURITY_ANSWER, securityAnswer) else editor.remove(KEY_PENDING_SECURITY_ANSWER)
         editor.apply()
     }
 
@@ -90,6 +164,13 @@ class CredentialStore(context: Context) {
     fun getPendingProfession(): String? = prefs.getString(KEY_PENDING_PROFESSION, null)
     fun getPendingConversationIntensity(): String? = prefs.getString(KEY_PENDING_CONVERSATION_INTENSITY, null)
     fun getPendingAvoidedTopics(): String? = prefs.getString(KEY_PENDING_AVOIDED_TOPICS, null)
+    fun getPendingLocation(): String? = prefs.getString(KEY_PENDING_LOCATION, null)
+    fun getPendingReligion(): String? = prefs.getString(KEY_PENDING_RELIGION, null)
+    fun getPendingCaste(): String? = prefs.getString(KEY_PENDING_CASTE, null)
+    fun getPendingAnnualIncome(): String? = prefs.getString(KEY_PENDING_ANNUAL_INCOME, null)
+    fun getPendingPhoneNumber(): String? = prefs.getString(KEY_PENDING_PHONE_NUMBER, null)
+    fun getPendingSecurityQuestion(): String? = prefs.getString(KEY_PENDING_SECURITY_QUESTION, null)
+    fun getPendingSecurityAnswer(): String? = prefs.getString(KEY_PENDING_SECURITY_ANSWER, null)
 
     fun clearPendingProfile() {
         prefs.edit()
@@ -106,6 +187,13 @@ class CredentialStore(context: Context) {
             .remove(KEY_PENDING_PROFESSION)
             .remove(KEY_PENDING_CONVERSATION_INTENSITY)
             .remove(KEY_PENDING_AVOIDED_TOPICS)
+            .remove(KEY_PENDING_LOCATION)
+            .remove(KEY_PENDING_RELIGION)
+            .remove(KEY_PENDING_CASTE)
+            .remove(KEY_PENDING_ANNUAL_INCOME)
+            .remove(KEY_PENDING_PHONE_NUMBER)
+            .remove(KEY_PENDING_SECURITY_QUESTION)
+            .remove(KEY_PENDING_SECURITY_ANSWER)
             .apply()
     }
 
@@ -173,6 +261,15 @@ class CredentialStore(context: Context) {
         private const val KEY_PENDING_PROFESSION = "pending_profession"
         private const val KEY_PENDING_CONVERSATION_INTENSITY = "pending_conversation_intensity"
         private const val KEY_PENDING_AVOIDED_TOPICS = "pending_avoided_topics"
+        private const val KEY_PENDING_LOCATION = "pending_location"
+        private const val KEY_PENDING_RELIGION = "pending_religion"
+        private const val KEY_PENDING_CASTE = "pending_caste"
+        private const val KEY_PENDING_ANNUAL_INCOME = "pending_annual_income"
+        private const val KEY_PENDING_PHONE_NUMBER = "pending_phone_number"
+        private const val KEY_PENDING_SECURITY_QUESTION = "pending_security_question"
+        private const val KEY_PENDING_SECURITY_ANSWER = "pending_security_answer"
+        private const val KEY_SECURITY_QUESTION = "security_question"
+        private const val KEY_SECURITY_ANSWER = "security_answer"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_USER_GENDER = "user_gender"

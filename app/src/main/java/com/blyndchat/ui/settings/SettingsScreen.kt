@@ -52,7 +52,7 @@ fun SettingsScreen(navController: NavController) {
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = if (colors.isDark) Color.White else Color(0xFF150D24),
+                            color = if (colors.isDark) Color.White else Color(0xFF141416),
                             shadowElevation = 3.dp,
                             modifier = Modifier.size(38.dp)
                         ) {
@@ -60,7 +60,7 @@ fun SettingsScreen(navController: NavController) {
                                 Icon(
                                     imageVector = Icons.Default.ArrowBack,
                                     contentDescription = "Back",
-                                    tint = if (colors.isDark) Color(0xFF150D24) else Color.White,
+                                    tint = if (colors.isDark) Color(0xFF141416) else Color.White,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -69,7 +69,7 @@ fun SettingsScreen(navController: NavController) {
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = colors.topBarContainer,
-                    navigationIconContentColor = if (colors.isDark) Color.White else Color(0xFF150D24),
+                    navigationIconContentColor = if (colors.isDark) Color.White else Color(0xFF141416),
                     titleContentColor = colors.topBarTitle
                 )
             )
@@ -139,7 +139,7 @@ fun SettingsScreen(navController: NavController) {
                         Divider(color = colors.dividerColor, thickness = 1.dp, modifier = Modifier.padding(horizontal = 16.dp))
 
                         // Theme Option
-                        val label = if (currentMode == "black") "Current Theme (Black)" else "White"
+                        val label = if (currentMode == "black") "Dark Grey (Default)" else "White"
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -234,14 +234,18 @@ private fun ThemeSelectionDialog(
     onSelect: (String) -> Unit
 ) {
     var selected by remember { mutableStateOf(if (current == "black") "black" else "white") }
+    val colors = com.blyndchat.ui.theme.LocalAppColors.current
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = colors.cardContainer,
+        titleContentColor = colors.textPrimary,
+        textContentColor = colors.textSecondary,
         title = { Text("Select Theme", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 RowOption(
-                    label = "Current Theme (Black)",
-                    subtitle = "Fancy luxury dark aesthetic with neon gold highlights",
+                    label = "Dark Grey (Default)",
+                    subtitle = "Sleek dark grey charcoal aesthetic with luxury accents",
                     selected = selected == "black"
                 ) { selected = "black" }
 
@@ -253,10 +257,10 @@ private fun ThemeSelectionDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSelect(selected) }) { Text("Apply", fontWeight = FontWeight.Bold) }
+            TextButton(onClick = { onSelect(selected) }) { Text("Apply", fontWeight = FontWeight.Bold, color = colors.topBarSubtitle) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = colors.textSecondary) }
         }
     )
 }

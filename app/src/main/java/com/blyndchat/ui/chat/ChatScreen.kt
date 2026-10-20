@@ -1,5 +1,6 @@
 package com.blyndchat.ui.chat
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -27,28 +28,42 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +78,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.blyndchat.data.ai.AiBotConfig
 import com.blyndchat.data.ai.AiBotEngine
+import com.blyndchat.data.ai.BotInterestStore
 import com.blyndchat.data.ai.BotMessageStore
 import com.blyndchat.data.ai.BotReplyScheduler
 import com.blyndchat.data.ai.GeminiChatService
@@ -92,6 +108,21 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
     val input = remember { mutableStateOf("") }
     val localTyping = remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    var showMenu by remember { mutableStateOf(false) }
+    var showBlockDialog by remember { mutableStateOf(false) }
+    var showReportDialog by remember { mutableStateOf(false) }
+    var selectedReportReason by remember { mutableStateOf("Harassment or inappropriate messages") }
+
+    val onNavigateBack: () -> Unit = {
+        navController.previousBackStackEntry?.savedStateHandle?.set("targetTab", 1)
+        if (!navController.popBackStack()) {
+            navController.navigate("home") {
+                popUpTo("home") { inclusive = true }
+            }
+        }
+    }
+
+    BackHandler(onBack = onNavigateBack)
 
     val token = store.getToken()
     val isBotChat = AiBotConfig.isBot(peerId)
@@ -118,6 +149,17 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
         localTyping.value
     }
 
+    // Track active conversation and mark as read while user is inside this chat
+    DisposableEffect(conversationId) {
+        if (!conversationId.isNullOrBlank()) {
+            BotMessageStore.setActiveConversation(conversationId)
+            BotMessageStore.markAsRead(conversationId)
+        }
+        onDispose {
+            BotMessageStore.setActiveConversation(null)
+        }
+    }
+
     // Load messages
     LaunchedEffect(conversationId, token) {
         if (conversationId.isNullOrBlank()) {
@@ -126,6 +168,7 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
         }
         if (isBotChat) {
             BotMessageStore.initConversation(conversationId)
+            BotMessageStore.markAsRead(conversationId)
         } else {
             if (token.isNullOrBlank()) {
                 snackbarHostState.showSnackbar("Missing chat context")
@@ -186,21 +229,6 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                                     fontWeight = FontWeight.Bold,
                                     color = colors.topBarTitle
                                 )
-                                if (AiBotConfig.isAiModel(peerId)) {
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = if (colors.isDark) Color(0x33FFD700) else Color(0x22D64978)
-                                    ) {
-                                        Text(
-                                            text = "AI",
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (colors.isDark) LuxuryGold else Color(0xFF9A2D55),
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
                             }
                             if (isBotChat && isCurrentlyTyping) {
                                 Text(
@@ -214,8 +242,40 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = colors.topBarTitle)
+                    }
+                },
+                actions = {
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More options", tint = colors.topBarTitle)
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Block", color = Color(0xFFFF5252), fontWeight = FontWeight.SemiBold) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Close, contentDescription = null, tint = Color(0xFFFF5252))
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    showBlockDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Report & Block", color = Color(0xFFFF9800), fontWeight = FontWeight.SemiBold) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFFF9800))
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    showReportDialog = true
+                                }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -225,6 +285,104 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
+        if (showBlockDialog) {
+            AlertDialog(
+                onDismissRequest = { showBlockDialog = false },
+                title = {
+                    Text("Block $chatTitle?", fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Text("Are you sure you want to block $chatTitle? You will no longer receive any messages or connection requests from them.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showBlockDialog = false
+                            peerId?.let { id ->
+                                BotInterestStore.blockPeer(context, id)
+                            }
+                            if (!conversationId.isNullOrBlank()) {
+                                BotMessageStore.removeConversation(conversationId)
+                            }
+                            onNavigateBack()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
+                    ) {
+                        Text("Block", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showBlockDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (showReportDialog) {
+            val reportReasons = listOf(
+                "Harassment or inappropriate messages",
+                "Spam or promotional content",
+                "Fake profile or impersonation",
+                "Offensive language",
+                "Other violation"
+            )
+            AlertDialog(
+                onDismissRequest = { showReportDialog = false },
+                title = {
+                    Text("Report & Block $chatTitle", fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Column {
+                        Text(
+                            "Please select a reason for reporting. $chatTitle will be blocked immediately.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textSecondary
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        reportReasons.forEach { reason ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedReportReason = reason }
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                RadioButton(
+                                    selected = (reason == selectedReportReason),
+                                    onClick = { selectedReportReason = reason },
+                                    colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFFF9800))
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(reason, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showReportDialog = false
+                            peerId?.let { id ->
+                                BotInterestStore.blockPeer(context, id)
+                            }
+                            if (!conversationId.isNullOrBlank()) {
+                                BotMessageStore.removeConversation(conversationId)
+                            }
+                            onNavigateBack()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
+                    ) {
+                        Text("Report & Block", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showReportDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -265,7 +423,7 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                                             .border(
                                                 width = 2.dp,
                                                 brush = Brush.sweepGradient(
-                                                    listOf(LuxuryGold, LuxuryRose, Color(0xFF9D4EDD), LuxuryGold)
+                                                    listOf(LuxuryGold, LuxuryRose, Color(0xFFFFB03A), LuxuryGold)
                                                 ),
                                                 shape = CircleShape
                                             )
@@ -449,7 +607,7 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                                         content = text,
                                         createdAt = BotMessageStore.nowTimestamp()
                                     )
-                                    BotMessageStore.addMessage(convo, userMsg)
+                                    BotMessageStore.addMessage(convo, userMsg, isIncoming = false)
                                     input.value = ""
 
                                     // Schedule bot reply according to individual persona timing rules:

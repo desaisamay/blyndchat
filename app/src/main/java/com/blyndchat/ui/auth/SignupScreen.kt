@@ -1,5 +1,6 @@
 package com.blyndchat.ui.auth
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,8 +33,13 @@ import com.blyndchat.BuildConfig
 import com.blyndchat.data.auth.CredentialStore
 import com.blyndchat.data.auth.LocalAuthRepository
 import com.blyndchat.data.auth.RemoteAuthRepository
+import com.blyndchat.data.auth.SecurityQuestions
 import com.blyndchat.data.auth.SupabaseAuthRepository
+import com.blyndchat.data.profile.AvatarCatalog
 import com.blyndchat.ui.theme.LocalAppColors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -46,8 +52,14 @@ fun SignupScreen(navController: NavController) {
     var password by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("Female") }
-    var selectedAvatar by remember { mutableStateOf("Avatar_2.png") }
+    var selectedAvatar by remember { mutableStateOf(AvatarCatalog.defaultAvatarForGender("Female")) }
     var showAvatarDialog by remember { mutableStateOf(false) }
+    var dialogGenderTab by remember { mutableStateOf("Female") }
+
+    // Security Question & Answer for password recovery
+    var securityQuestion by remember { mutableStateOf(SecurityQuestions.defaultQuestion) }
+    var securityQuestionExpanded by remember { mutableStateOf(false) }
+    var securityAnswer by remember { mutableStateOf("") }
 
     // Chat Persona & Preferences Details
     var bio by remember { mutableStateOf("") }
@@ -65,6 +77,8 @@ fun SignupScreen(navController: NavController) {
 
     var error by remember { mutableStateOf<String?>(null) }
     var success by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     val context = LocalContext.current
     val store = remember { CredentialStore(context.applicationContext) }
@@ -76,28 +90,21 @@ fun SignupScreen(navController: NavController) {
         }
     }
 
-    val avatarList = remember {
-        val fromAssets = try {
-            context.assets.list("avatars")?.filter { it.startsWith("Avatar_") && it.endsWith(".png") }
-        } catch (e: Exception) {
-            null
-        }
-        if (!fromAssets.isNullOrEmpty()) {
-            fromAssets.sortedWith(Comparator { a, b ->
-                val numA = a.filter { it.isDigit() }.toIntOrNull() ?: 0
-                val numB = b.filter { it.isDigit() }.toIntOrNull() ?: 0
-                numA.compareTo(numB)
-            })
+    val avatarList = remember(gender) {
+        AvatarCatalog.getAvatarsForGender(gender)
+    }
+
+    fun onGenderSelected(newGender: String) {
+        gender = newGender
+        dialogGenderTab = newGender
+        val isMale = newGender.equals("Male", ignoreCase = true)
+        val isValidCurrent = if (isMale) {
+            AvatarCatalog.isMaleAvatar(selectedAvatar)
         } else {
-            listOf(
-                "Avatar_2.png", "Avatar_3.png", "Avatar_4.png", "Avatar_5.png",
-                "Avatar_6.png", "Avatar_7.png", "Avatar_8.png", "Avatar_21.png",
-                "Avatar_22.png", "Avatar_23.png", "Avatar_31.png", "Avatar_32.png",
-                "Avatar_34.png", "Avatar_41.png", "Avatar_42.png", "Avatar_43.png",
-                "Avatar_51.png", "Avatar_52.png", "Avatar_53.png", "Avatar_61.png",
-                "Avatar_62.png", "Avatar_63.png", "Avatar_71.png", "Avatar_72.png",
-                "Avatar_73.png", "Avatar_81.png", "Avatar_82.png", "Avatar_83.png"
-            )
+            AvatarCatalog.isFemaleAvatar(selectedAvatar)
+        }
+        if (!isValidCurrent) {
+            selectedAvatar = AvatarCatalog.defaultAvatarForGender(newGender)
         }
     }
 
@@ -152,47 +159,146 @@ fun SignupScreen(navController: NavController) {
     )
 
     if (showAvatarDialog) {
+        val currentGenderAvatars = remember(dialogGenderTab) {
+            AvatarCatalog.getAvatarsForGender(dialogGenderTab)
+        }
+
         AlertDialog(
             onDismissRequest = { showAvatarDialog = false },
             title = {
-                Text(
-                    text = "Choose Profile Avatar",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
+                Column {
+                    Text(
+                        text = "Choose AI Avatar",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.topBarTitle
+                    )
+                    Text(
+                        text = "10 curated AI portraits for ${if (dialogGenderTab.equals("Male", ignoreCase = true)) "Male" else "Female"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("Female" to "👩 Female (10)", "Male" to "👨 Male (10)").forEach { (gVal, gLabel) ->
+                            val isTabSelected = dialogGenderTab.equals(gVal, ignoreCase = true)
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(38.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (isTabSelected) {
+                                            if (colors.isDark) Color(0xFFD4AF37).copy(alpha = 0.25f)
+                                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        } else {
+                                            if (colors.isDark) Color.White.copy(alpha = 0.05f)
+                                            else Color.Black.copy(alpha = 0.04f)
+                                        }
+                                    )
+                                    .border(
+                                        width = if (isTabSelected) 2.dp else 1.dp,
+                                        color = if (isTabSelected) {
+                                            if (colors.isDark) Color(0xFFD4AF37) else MaterialTheme.colorScheme.primary
+                                        } else Color.Gray.copy(alpha = 0.25f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable {
+                                        dialogGenderTab = gVal
+                                        onGenderSelected(gVal)
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = gLabel,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = if (isTabSelected) FontWeight.Bold else FontWeight.Medium
+                                    ),
+                                    color = if (isTabSelected) {
+                                        if (colors.isDark) Color(0xFFD4AF37) else MaterialTheme.colorScheme.primary
+                                    } else colors.textPrimary
+                                )
+                            }
+                        }
+                    }
+                }
             },
             text = {
                 Box(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        columns = GridCells.Fixed(3),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(avatarList) { avatarFile ->
+                        items(currentGenderAvatars) { avatarFile ->
                             val isSelected = avatarFile == selectedAvatar
-                            Box(
+                            val avatarNumber = avatarFile.filter { it.isDigit() }
+                            val prefix = if (AvatarCatalog.isMaleAvatar(avatarFile)) "Male" else "Female"
+
+                            Card(
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) {
+                                        if (colors.isDark) Color(0xFF2A2415) else Color(0xFFFFF8E7)
+                                    } else {
+                                        if (colors.isDark) Color(0xFF1E1E1E) else Color(0xFFF6F6F6)
+                                    }
+                                ),
+                                border = BorderStroke(
+                                    width = if (isSelected) 2.dp else 1.dp,
+                                    color = if (isSelected) {
+                                        if (colors.isDark) Color(0xFFD4AF37) else MaterialTheme.colorScheme.primary
+                                    } else Color.Gray.copy(alpha = 0.25f)
+                                ),
                                 modifier = Modifier
-                                    .aspectRatio(1f)
-                                    .clip(CircleShape)
-                                    .border(
-                                        width = if (isSelected) 3.dp else 1.dp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.3f),
-                                        shape = CircleShape
-                                    )
+                                    .fillMaxWidth()
                                     .clickable {
                                         selectedAvatar = avatarFile
+                                        if (!gender.equals(dialogGenderTab, ignoreCase = true)) {
+                                            onGenderSelected(dialogGenderTab)
+                                        }
                                         showAvatarDialog = false
                                     }
                             ) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(context)
-                                        .data("file:///android_asset/avatars/$avatarFile")
-                                        .build(),
-                                    contentDescription = "Avatar option",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(72.dp)
+                                            .clip(CircleShape)
+                                            .border(
+                                                width = if (isSelected) 2.5.dp else 1.dp,
+                                                color = if (isSelected) {
+                                                    if (colors.isDark) Color(0xFFD4AF37) else MaterialTheme.colorScheme.primary
+                                                } else Color.Gray.copy(alpha = 0.3f),
+                                                shape = CircleShape
+                                            )
+                                    ) {
+                                        AsyncImage(
+                                            model = ImageRequest.Builder(context)
+                                                .data(AvatarCatalog.getAssetUri(avatarFile))
+                                                .build(),
+                                            contentDescription = "$prefix Avatar $avatarNumber",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "#$avatarNumber",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) {
+                                            if (colors.isDark) Color(0xFFD4AF37) else MaterialTheme.colorScheme.primary
+                                        } else colors.textPrimary
+                                    )
+                                }
                             }
                         }
                     }
@@ -200,7 +306,7 @@ fun SignupScreen(navController: NavController) {
             },
             confirmButton = {
                 TextButton(onClick = { showAvatarDialog = false }) {
-                    Text("Close")
+                    Text("Done", fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -218,7 +324,7 @@ fun SignupScreen(navController: NavController) {
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             Text(
                 text = "Create Profile",
@@ -230,13 +336,69 @@ fun SignupScreen(navController: NavController) {
             )
 
             Text(
-                text = "Set up your persona and chat preferences",
+                text = "Set up your persona and select your AI avatar",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
                 modifier = Modifier.padding(top = 4.dp)
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Gender Selector: Male vs Female (10 AI photos each)
+            Text(
+                text = "Gender",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.textPrimary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 2.dp, bottom = 6.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                listOf("Female" to "👩 Female", "Male" to "👨 Male").forEach { (gVal, gLabel) ->
+                    val isSelected = gender.equals(gVal, ignoreCase = true)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isSelected) {
+                                    if (colors.isDark) Color(0xFFD4AF37).copy(alpha = 0.22f)
+                                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                } else {
+                                    if (colors.isDark) Color.White.copy(alpha = 0.05f)
+                                    else Color.Black.copy(alpha = 0.04f)
+                                }
+                            )
+                            .border(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) {
+                                    if (colors.isDark) Color(0xFFD4AF37) else MaterialTheme.colorScheme.primary
+                                } else {
+                                    Color.Gray.copy(alpha = 0.25f)
+                                },
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .clickable { onGenderSelected(gVal) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = gLabel,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            color = if (isSelected) {
+                                if (colors.isDark) Color(0xFFD4AF37) else MaterialTheme.colorScheme.primary
+                            } else colors.textPrimary
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Selected Avatar Preview
             Box(
@@ -245,11 +407,14 @@ fun SignupScreen(navController: NavController) {
                     .size(105.dp)
                     .clip(CircleShape)
                     .border(3.dp, if (colors.isDark) Color(0xFFD4AF37) else MaterialTheme.colorScheme.primary, CircleShape)
-                    .clickable { showAvatarDialog = true }
+                    .clickable { 
+                        dialogGenderTab = gender
+                        showAvatarDialog = true 
+                    }
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(context)
-                        .data("file:///android_asset/avatars/$selectedAvatar")
+                        .data(AvatarCatalog.getAssetUri(selectedAvatar))
                         .build(),
                     contentDescription = "Selected Avatar",
                     modifier = Modifier.fillMaxSize(),
@@ -264,18 +429,21 @@ fun SignupScreen(navController: NavController) {
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "Select Avatar",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.textSecondary
+                    text = "${if (gender.equals("Male", ignoreCase = true)) "Male" else "Female"} AI Avatar (${avatarList.size} styles)",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = colors.textPrimary
                 )
-                TextButton(onClick = { showAvatarDialog = true }) {
-                    Text("See all (${avatarList.size})")
+                TextButton(onClick = { 
+                    dialogGenderTab = gender
+                    showAvatarDialog = true 
+                }) {
+                    Text("See all (10)")
                 }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Horizontal Avatar carousel
+            // Horizontal Avatar carousel with 10 AI photos for current gender
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -285,7 +453,7 @@ fun SignupScreen(navController: NavController) {
                     val isSelected = avatarFile == selectedAvatar
                     Box(
                         modifier = Modifier
-                            .size(54.dp)
+                            .size(56.dp)
                             .clip(CircleShape)
                             .border(
                                 width = if (isSelected) 3.dp else 1.dp,
@@ -296,7 +464,7 @@ fun SignupScreen(navController: NavController) {
                     ) {
                         AsyncImage(
                             model = ImageRequest.Builder(context)
-                                .data("file:///android_asset/avatars/$avatarFile")
+                                .data(AvatarCatalog.getAssetUri(avatarFile))
                                 .build(),
                             contentDescription = "Avatar thumbnail",
                             modifier = Modifier.fillMaxSize(),
@@ -336,6 +504,58 @@ fun SignupScreen(navController: NavController) {
                 onValueChange = { password = it },
                 label = { Text("Password") },
                 visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Security Question Section for Password Recovery
+            FormSectionHeader(
+                title = "Security Question (Password Recovery)",
+                subtitle = "Select a secret question to reset your password if you ever forget it"
+            )
+
+            ExposedDropdownMenuBox(
+                expanded = securityQuestionExpanded,
+                onExpandedChange = { securityQuestionExpanded = !securityQuestionExpanded },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = securityQuestion,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Secret Question") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = securityQuestionExpanded) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                ExposedDropdownMenu(
+                    expanded = securityQuestionExpanded,
+                    onDismissRequest = { securityQuestionExpanded = false }
+                ) {
+                    SecurityQuestions.list.forEach { q ->
+                        DropdownMenuItem(
+                            text = { Text(q) },
+                            onClick = {
+                                securityQuestion = q
+                                securityQuestionExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = securityAnswer,
+                onValueChange = { securityAnswer = it },
+                label = { Text("Secret Answer") },
+                placeholder = { Text("e.g. Bangalore, St. Xavier's, etc.") },
+                supportingText = { Text("Case-insensitive: uppercase/lowercase both work") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             )
@@ -398,7 +618,7 @@ fun SignupScreen(navController: NavController) {
                     SelectableChip(
                         text = g,
                         selected = gender == g,
-                        onClick = { gender = g },
+                        onClick = { onGenderSelected(g) },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -611,10 +831,12 @@ fun SignupScreen(navController: NavController) {
             }
 
             Button(
+                enabled = !isLoading,
                 onClick = {
+                    if (isLoading) return@Button
                     error = null
                     success = null
-                    val avatarAssetUri = "file:///android_asset/avatars/$selectedAvatar"
+                    val avatarAssetUri = AvatarCatalog.getAssetUri(selectedAvatar)
 
                     val allTopics = (selectedTopics + customTopicText.split(",").map { it.trim() }.filter { it.isNotBlank() })
                         .distinct()
@@ -624,32 +846,57 @@ fun SignupScreen(navController: NavController) {
                         .distinct()
                         .joinToString(", ")
 
-                    store.savePendingProfile(
-                        name = name.trim().ifEmpty { null },
-                        age = age.trim().toIntOrNull(),
-                        gender = gender.ifEmpty { null },
-                        avatarUri = avatarAssetUri,
-                        bio = bio.trim().ifEmpty { null },
-                        lookingFor = lookingFor.ifEmpty { null },
-                        preferredAgeRange = preferredAgeRange.ifEmpty { null },
-                        preferredTopics = allTopics.ifEmpty { null },
-                        personalityType = personalityType.ifEmpty { null },
-                        height = height.trim().ifEmpty { null },
-                        profession = profession.trim().ifEmpty { null },
-                        conversationIntensity = conversationIntensity.ifEmpty { null },
-                        avoidedTopics = allAvoided.ifEmpty { null }
-                    )
-
-                    if (gender.isNotBlank()) {
-                        store.saveUserGender(gender)
+                    if (email.isBlank()) {
+                        error = "Email is required"
+                        return@Button
+                    }
+                    if (password.length < 6) {
+                        error = "Password must be at least 6 characters"
+                        return@Button
+                    }
+                    if (securityAnswer.trim().isBlank()) {
+                        error = "Please provide an answer to your secret question"
+                        return@Button
                     }
 
-                    val result = auth.register(email.trim(), password)
-                    if (result.isSuccess) {
-                        success = "Account created. Please login."
-                        navController.popBackStack()
-                    } else {
-                        error = result.exceptionOrNull()?.message ?: "Signup failed"
+                    isLoading = true
+
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            store.savePendingProfile(
+                                name = name.trim().ifEmpty { null },
+                                age = age.trim().toIntOrNull(),
+                                gender = gender.ifEmpty { null },
+                                avatarUri = avatarAssetUri,
+                                bio = bio.trim().ifEmpty { null },
+                                lookingFor = lookingFor.ifEmpty { null },
+                                preferredAgeRange = preferredAgeRange.ifEmpty { null },
+                                preferredTopics = allTopics.ifEmpty { null },
+                                personalityType = personalityType.ifEmpty { null },
+                                height = height.trim().ifEmpty { null },
+                                profession = profession.trim().ifEmpty { null },
+                                conversationIntensity = conversationIntensity.ifEmpty { null },
+                                avoidedTopics = allAvoided.ifEmpty { null },
+                                securityQuestion = securityQuestion,
+                                securityAnswer = securityAnswer.trim().ifEmpty { null }
+                            )
+
+                            if (gender.isNotBlank()) {
+                                store.saveUserGender(gender)
+                            }
+
+                            store.saveSecurityQuestion(email.trim(), securityQuestion, securityAnswer.trim())
+
+                            auth.register(email.trim(), password, securityQuestion, securityAnswer.trim())
+                        }
+
+                        if (result.isSuccess) {
+                            success = "Account created. Please login."
+                            navController.popBackStack()
+                        } else {
+                            isLoading = false
+                            error = result.exceptionOrNull()?.message ?: "Signup failed"
+                        }
                     }
                 },
                 modifier = Modifier
@@ -657,12 +904,30 @@ fun SignupScreen(navController: NavController) {
                     .height(52.dp),
                 shape = RoundedCornerShape(14.dp)
             ) {
-                Text("Create Profile & Sign Up", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                if (isLoading) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.5.dp
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Creating Profile...", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+                } else {
+                    Text("Create Profile & Sign Up", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            TextButton(onClick = { navController.popBackStack() }) {
+            TextButton(
+                enabled = !isLoading,
+                onClick = { navController.popBackStack() }
+            ) {
                 Text(
                     text = "Already have an account? Login",
                     color = if (colors.isDark) Color(0xFFD4AF37) else MaterialTheme.colorScheme.primary

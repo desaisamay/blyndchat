@@ -77,6 +77,7 @@ fun SwipeableProfileDeck(
 
     val topProfile = profiles[0]
     val nextProfile = if (profiles.size > 1) profiles[1] else null
+    val colors = com.blyndchat.ui.theme.LocalAppColors.current
 
     // Reset offset whenever top profile changes
     LaunchedEffect(topProfile.id) {
@@ -209,12 +210,12 @@ fun SwipeableProfileDeck(
                             .rotate(-15f)
                             .alpha(rightStampAlpha)
                             .background(
-                                color = Color(0xDD0A3D24),
+                                color = if (colors.isDark) Color(0xDD362B07) else Color(0xDDFFFBEA),
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .border(
                                 width = 2.5.dp,
-                                color = LuxuryEmerald,
+                                color = LuxuryGold,
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -223,7 +224,7 @@ fun SwipeableProfileDeck(
                             text = "REQUEST SENT ✨",
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 18.sp,
-                            color = Color(0xFF55FF9E),
+                            color = LuxuryGold,
                             letterSpacing = 1.sp
                         )
                     }
@@ -300,7 +301,7 @@ fun SwipeableProfileDeck(
                     .size(60.dp)
                     .shadow(12.dp, CircleShape, spotColor = LuxuryRose.copy(alpha = 0.5f))
                     .clip(CircleShape)
-                    .background(Color(0xFF200B14))
+                    .background(colors.skipButtonContainer)
                     .border(2.dp, LuxuryRose, CircleShape)
             ) {
                 Icon(
@@ -311,20 +312,46 @@ fun SwipeableProfileDeck(
                 )
             }
 
-            // View Details Button
+            // View Details Button (Big & Appealing Info Button)
             IconButton(
                 onClick = { onViewDetails(topProfile) },
                 modifier = Modifier
-                    .size(46.dp)
+                    .size(56.dp)
+                    .shadow(14.dp, CircleShape, spotColor = Color(0xFF00C6FF).copy(alpha = 0.5f))
                     .clip(CircleShape)
-                    .background(Color(0x227B2CBF))
-                    .border(1.dp, Color(0xFF9D4EDD).copy(alpha = 0.6f), CircleShape)
+                    .background(
+                        if (colors.isDark) {
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFF0D253F),
+                                    Color(0xFF133B63)
+                                )
+                            )
+                        } else {
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFFE0F2FE),
+                                    Color(0xFFBAE6FD)
+                                )
+                            )
+                        }
+                    )
+                    .border(
+                        2.dp,
+                        Brush.linearGradient(
+                            listOf(
+                                Color(0xFF38BDF8),
+                                Color(0xFF0284C7)
+                            )
+                        ),
+                        CircleShape
+                    )
             ) {
                 Icon(
                     imageVector = Icons.Default.Info,
                     contentDescription = "View Details",
-                    tint = Color(0xFFD0A1FF),
-                    modifier = Modifier.size(22.dp)
+                    tint = if (colors.isDark) Color(0xFF38BDF8) else Color(0xFF0284C7),
+                    modifier = Modifier.size(30.dp)
                 )
             }
 
@@ -333,22 +360,31 @@ fun SwipeableProfileDeck(
                 onClick = { animateSwipe(toRight = true) },
                 modifier = Modifier
                     .size(60.dp)
-                    .shadow(14.dp, CircleShape, spotColor = Color(0xFF00E676).copy(alpha = 0.5f))
+                    .shadow(14.dp, CircleShape, spotColor = LuxuryGold.copy(alpha = 0.5f))
                     .clip(CircleShape)
                     .background(
-                        Brush.linearGradient(
-                            listOf(
-                                Color(0xFF0F3D24),
-                                Color(0xFF1B5E20)
+                        if (colors.isDark) {
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFF362B07),
+                                    Color(0xFF52400B)
+                                )
                             )
-                        )
+                        } else {
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFFFFFBEA),
+                                    Color(0xFFFFF3CD)
+                                )
+                            )
+                        }
                     )
-                    .border(2.dp, LuxuryEmerald, CircleShape)
+                    .border(2.dp, LuxuryGold, CircleShape)
             ) {
                 Icon(
                     imageVector = Icons.Default.Favorite,
                     contentDescription = "Connect",
-                    tint = Color(0xFF4EFA8F),
+                    tint = if (colors.isDark) LuxuryGold else Color(0xFFB8860B),
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -371,17 +407,17 @@ private fun DeckCardItem(
         modifier = modifier
             .shadow(
                 elevation = 16.dp,
-                shape = RoundedCornerShape(26.dp),
+                shape = RoundedCornerShape(12.dp),
                 spotColor = colors.cardShadowSpot,
                 ambientColor = if (colors.isDark) LuxuryGold.copy(alpha = 0.25f) else Color(0x15000000)
             )
             .border(
                 width = 1.5.dp,
                 brush = colors.cardBorder,
-                shape = RoundedCornerShape(26.dp)
+                shape = RoundedCornerShape(12.dp)
             )
             .clickable { onCardClick() },
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = colors.cardContainer)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -438,26 +474,62 @@ private fun DeckCardItem(
                     .fillMaxWidth()
                     .padding(horizontal = 18.dp, vertical = 12.dp)
             ) {
-                // Name & Age
+                // Name & Age Row with Appealing Card Info Button
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "${profile.name}, ${profile.age}",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 22.sp,
-                            letterSpacing = 0.3.sp
-                        ),
-                        color = colors.textPrimary
-                    )
-                    Text(
-                        text = "✓",
-                        color = if (colors.isDark) LuxuryGold else Color(0xFFB33664),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "${profile.name}, ${profile.age}",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 22.sp,
+                                letterSpacing = 0.3.sp
+                            ),
+                            color = colors.textPrimary
+                        )
+                        Text(
+                            text = "✓",
+                            color = if (colors.isDark) LuxuryGold else Color(0xFFB33664),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Appealing & Big Info Button on Profile Card
+                    IconButton(
+                        onClick = onCardClick,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .shadow(8.dp, CircleShape, spotColor = Color(0xFF00C6FF).copy(alpha = 0.4f))
+                            .clip(CircleShape)
+                            .background(
+                                if (colors.isDark) Color(0xFF132A44)
+                                else Color(0xFFE0F2FE)
+                            )
+                            .border(
+                                1.5.dp,
+                                Brush.linearGradient(
+                                    listOf(
+                                        Color(0xFF38BDF8),
+                                        Color(0xFF0284C7)
+                                    )
+                                ),
+                                CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "View Profile Info",
+                            tint = if (colors.isDark) Color(0xFF38BDF8) else Color(0xFF0284C7),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(3.dp))

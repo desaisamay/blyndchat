@@ -9,31 +9,32 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.blyndchat.BuildConfig
 import com.blyndchat.data.auth.AuthRepository
+import com.blyndchat.data.auth.CredentialStore
 import com.blyndchat.data.auth.LocalAuthRepository
 import com.blyndchat.data.auth.RemoteAuthRepository
+import com.blyndchat.data.auth.SecurityQuestions
 import com.blyndchat.data.auth.SupabaseAuthRepository
+import com.blyndchat.ui.theme.LocalAppColors
 import com.blyndchat.ui.theme.ShaadiGold
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -41,20 +42,8 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ForgotPasswordScreen(navController: NavController) {
-    var email by remember { mutableStateOf("") }
-    var otp by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-
-    var isSendingOtp by remember { mutableStateOf(false) }
-    var isUpdatingPassword by remember { mutableStateOf(false) }
-    var otpSent by remember { mutableStateOf(false) }
-    var resendCooldown by remember { mutableStateOf(0) }
-
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var successMessage by remember { mutableStateOf<String?>(null) }
-
     val context = LocalContext.current
+    val store = remember { CredentialStore(context.applicationContext) }
     val auth: AuthRepository = remember {
         when {
             BuildConfig.USE_SUPABASE_AUTH -> SupabaseAuthRepository.getInstance(context)
@@ -62,15 +51,36 @@ fun ForgotPasswordScreen(navController: NavController) {
             else -> LocalAuthRepository.getInstance(context)
         }
     }
+    val colors = LocalAppColors.current
     val scope = rememberCoroutineScope()
 
-    // Countdown timer for resend cooldown
-    LaunchedEffect(resendCooldown) {
-        if (resendCooldown > 0) {
-            delay(1000L)
-            resendCooldown -= 1
+    var email by remember { mutableStateOf(store.getEmail() ?: "") }
+    var selectedQuestion by remember {
+        mutableStateOf(store.getSecurityQuestion(store.getEmail()) ?: SecurityQuestions.defaultQuestion)
+    }
+    var questionExpanded by remember { mutableStateOf(false) }
+    var secretAnswer by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var confirmPasswordVisible by remember { mutableStateOf(false) }
+
+    var isResetting by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var successMessage by remember { mutableStateOf<String?>(null) }
+
+    // Synchronize secret question when email changes
+    LaunchedEffect(email) {
+        val clean = email.trim()
+        if (clean.isNotBlank()) {
+            val q = store.getSecurityQuestion(clean)
+            if (!q.isNullOrBlank()) {
+                selectedQuestion = q
+            }
         }
     }
+
+    val brandGold = if (colors.isDark) Color(0xFFD4AF37) else ShaadiGold
 
     Scaffold(
         topBar = {
@@ -79,7 +89,8 @@ fun ForgotPasswordScreen(navController: NavController) {
                     Text(
                         text = "Reset Password",
                         fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
+                        color = colors.topBarTitle
                     )
                 },
                 navigationIcon = {
@@ -87,65 +98,70 @@ fun ForgotPasswordScreen(navController: NavController) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back",
-                            tint = Color.Black
+                            tint = colors.topBarTitle
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White,
-                    titleContentColor = Color.Black
+                    containerColor = colors.topBarContainer,
+                    titleContentColor = colors.topBarTitle
                 )
             )
         },
-        containerColor = Color.White
+        containerColor = Color.Transparent
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .background(colors.screenBackgroundBrush)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 24.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Brand header badge
+            // Security badge header
             Box(
                 modifier = Modifier
                     .size(80.dp)
                     .clip(CircleShape)
-                    .background(ShaadiGold.copy(alpha = 0.12f))
-                    .border(2.dp, ShaadiGold.copy(alpha = 0.3f), CircleShape),
+                    .background(brandGold.copy(alpha = 0.15f))
+                    .border(2.dp, brandGold.copy(alpha = 0.4f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Lock,
                     contentDescription = null,
-                    tint = ShaadiGold,
-                    modifier = Modifier.size(40.dp)
+                    tint = brandGold,
+                    modifier = Modifier.size(38.dp)
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Forgot Password?",
+                text = "Account Security Recovery",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black
+                color = colors.textPrimary
             )
 
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "Enter your registered email to receive an OTP code, then enter the OTP and your new password to reset it.",
+                text = "Validate your secret question to reset your password. Answer matching is case-insensitive.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray,
+                color = colors.textSecondary,
                 modifier = Modifier.padding(horizontal = 8.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(22.dp))
 
             // Error banner
             if (errorMessage != null) {
@@ -203,139 +219,110 @@ fun ForgotPasswordScreen(navController: NavController) {
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Field 1: Email Address with Send OTP button
+            // Field 1: Email Address
             OutlinedTextField(
                 value = email,
                 onValueChange = {
                     email = it
                     errorMessage = null
                 },
-                label = { Text("Email Address") },
+                label = { Text("Registered Email") },
                 placeholder = { Text("e.g. user@example.com") },
                 leadingIcon = {
-                    Icon(imageVector = Icons.Default.Email, contentDescription = null, tint = ShaadiGold)
+                    Icon(imageVector = Icons.Default.Email, contentDescription = null, tint = brandGold)
                 },
                 singleLine = true,
+                shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.Black,
-                    unfocusedTextColor = Color.Black,
-                    focusedBorderColor = ShaadiGold,
-                    focusedLabelColor = ShaadiGold,
-                    cursorColor = ShaadiGold
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary,
+                    focusedBorderColor = brandGold,
+                    focusedLabelColor = brandGold,
+                    cursorColor = brandGold
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Send / Resend OTP Action Button Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Field 2: Secret Question Dropdown
+            ExposedDropdownMenuBox(
+                expanded = questionExpanded,
+                onExpandedChange = { questionExpanded = !questionExpanded },
+                modifier = Modifier.fillMaxWidth()
             ) {
-                if (otpSent) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = Color(0xFF2E7D32),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "OTP sent to email",
-                            color = Color(0xFF2E7D32),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                } else {
-                    Text(
-                        text = "We will send an OTP code to this email",
-                        color = Color.Gray,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        if (email.isBlank()) {
-                            errorMessage = "Please enter your email address to receive OTP."
-                            return@OutlinedButton
-                        }
-                        errorMessage = null
-                        isSendingOtp = true
-                        scope.launch {
-                            val result = auth.sendPasswordResetOtp(email.trim())
-                            isSendingOtp = false
-                            if (result.isSuccess) {
-                                otpSent = true
-                                resendCooldown = 60
-                                successMessage = "OTP sent to ${email.trim()}! Please check your inbox and spam folder."
-                            } else {
-                                errorMessage = result.exceptionOrNull()?.message ?: "Failed to send OTP. Please check your email."
-                            }
-                        }
+                OutlinedTextField(
+                    value = selectedQuestion,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Secret Question") },
+                    leadingIcon = {
+                        Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = brandGold)
                     },
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(
-                        width = 1.dp,
-                        color = if (resendCooldown > 0) Color.LightGray else ShaadiGold
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = questionExpanded) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = colors.textPrimary,
+                        unfocusedTextColor = colors.textPrimary,
+                        focusedBorderColor = brandGold,
+                        focusedLabelColor = brandGold
                     ),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (resendCooldown > 0) Color.Gray else ShaadiGold
-                    ),
-                    enabled = !isSendingOtp && resendCooldown == 0
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = questionExpanded,
+                    onDismissRequest = { questionExpanded = false }
                 ) {
-                    if (isSendingOtp) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            color = ShaadiGold,
-                            strokeWidth = 2.dp
+                    SecurityQuestions.list.forEach { question ->
+                        DropdownMenuItem(
+                            text = { Text(question) },
+                            onClick = {
+                                selectedQuestion = question
+                                questionExpanded = false
+                            }
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
                     }
-                    Text(
-                        text = when {
-                            resendCooldown > 0 -> "Resend in ${resendCooldown}s"
-                            otpSent -> "Resend OTP"
-                            else -> "Send OTP"
-                        },
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Field 2: OTP Code
+            // Field 3: Secret Answer (Case-insensitive)
             OutlinedTextField(
-                value = otp,
+                value = secretAnswer,
                 onValueChange = {
-                    otp = it
+                    secretAnswer = it
                     errorMessage = null
                 },
-                label = { Text("OTP Code") },
-                placeholder = { Text("Enter 6-digit OTP from email") },
+                label = { Text("Secret Answer") },
+                placeholder = { Text("Enter your secret answer") },
+                supportingText = {
+                    Text(
+                        text = "Answers match irrespective of upper, lower, or camelCase",
+                        color = colors.textSecondary,
+                        fontSize = 11.sp
+                    )
+                },
                 leadingIcon = {
-                    Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = ShaadiGold)
+                    Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = brandGold)
                 },
                 singleLine = true,
+                shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.Black,
-                    unfocusedTextColor = Color.Black,
-                    focusedBorderColor = ShaadiGold,
-                    focusedLabelColor = ShaadiGold,
-                    cursorColor = ShaadiGold
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary,
+                    focusedBorderColor = brandGold,
+                    focusedLabelColor = brandGold,
+                    cursorColor = brandGold
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Field 3: New Password
+            // Field 4: New Password
             OutlinedTextField(
                 value = newPassword,
                 onValueChange = {
@@ -345,13 +332,13 @@ fun ForgotPasswordScreen(navController: NavController) {
                 label = { Text("New Password") },
                 placeholder = { Text("Minimum 6 characters") },
                 leadingIcon = {
-                    Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = ShaadiGold)
+                    Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = brandGold)
                 },
                 trailingIcon = {
                     TextButton(onClick = { passwordVisible = !passwordVisible }) {
                         Text(
                             text = if (passwordVisible) "Hide" else "Show",
-                            color = ShaadiGold,
+                            color = brandGold,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold
                         )
@@ -359,76 +346,120 @@ fun ForgotPasswordScreen(navController: NavController) {
                 },
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 singleLine = true,
+                shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.Black,
-                    unfocusedTextColor = Color.Black,
-                    focusedBorderColor = ShaadiGold,
-                    focusedLabelColor = ShaadiGold,
-                    cursorColor = ShaadiGold
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary,
+                    focusedBorderColor = brandGold,
+                    focusedLabelColor = brandGold,
+                    cursorColor = brandGold
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Submit Button: Update Password
+            // Field 5: Confirm Password
+            OutlinedTextField(
+                value = confirmPassword,
+                onValueChange = {
+                    confirmPassword = it
+                    errorMessage = null
+                },
+                label = { Text("Confirm New Password") },
+                placeholder = { Text("Re-enter new password") },
+                leadingIcon = {
+                    Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = brandGold)
+                },
+                trailingIcon = {
+                    TextButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
+                        Text(
+                            text = if (confirmPasswordVisible) "Hide" else "Show",
+                            color = brandGold,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary,
+                    focusedBorderColor = brandGold,
+                    focusedLabelColor = brandGold,
+                    cursorColor = brandGold
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(26.dp))
+
+            // Submit Button: Reset Password
             Button(
                 onClick = {
                     val cleanEmail = email.trim()
-                    val cleanOtp = otp.trim()
+                    val cleanAnswer = secretAnswer.trim()
                     val cleanPass = newPassword.trim()
+                    val cleanConfirm = confirmPassword.trim()
 
                     if (cleanEmail.isBlank()) {
-                        errorMessage = "Please enter your email address."
+                        errorMessage = "Please enter your registered email address."
                         return@Button
                     }
-                    if (cleanOtp.isBlank()) {
-                        errorMessage = "Please enter the OTP code sent to your email."
+                    if (cleanAnswer.isBlank()) {
+                        errorMessage = "Please enter your secret answer to verify identity."
                         return@Button
                     }
                     if (cleanPass.length < 6) {
                         errorMessage = "New password must be at least 6 characters long."
                         return@Button
                     }
+                    if (cleanPass != cleanConfirm) {
+                        errorMessage = "Passwords do not match. Please check and re-enter."
+                        return@Button
+                    }
 
                     errorMessage = null
-                    isUpdatingPassword = true
+                    isResetting = true
                     scope.launch {
-                        val result = auth.resetPasswordWithOtp(cleanEmail, cleanOtp, cleanPass)
-                        isUpdatingPassword = false
+                        val result = auth.resetPasswordWithSecurityAnswer(cleanEmail, cleanAnswer, cleanPass)
+                        isResetting = false
                         if (result.isSuccess) {
-                            successMessage = "Password updated successfully! Redirecting to login..."
-                            delay(1800L)
+                            successMessage = "Password reset successfully! Redirecting to login..."
+                            delay(1600L)
                             navController.navigate("login") {
                                 popUpTo("login") { inclusive = true }
                             }
                         } else {
-                            errorMessage = result.exceptionOrNull()?.message ?: "Failed to update password. Invalid or expired OTP."
+                            val msg = result.exceptionOrNull()?.message ?: "Validation failed"
+                            errorMessage = msg
                         }
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                enabled = !isUpdatingPassword,
+                enabled = !isResetting,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = ShaadiGold,
-                    contentColor = Color.White,
-                    disabledContainerColor = ShaadiGold.copy(alpha = 0.5f),
+                    containerColor = brandGold,
+                    contentColor = if (colors.isDark) Color(0xFF141416) else Color.White,
+                    disabledContainerColor = brandGold.copy(alpha = 0.5f),
                     disabledContentColor = Color.White.copy(alpha = 0.8f)
                 ),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(14.dp)
             ) {
-                if (isUpdatingPassword) {
+                if (isResetting) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(22.dp),
-                        color = Color.White,
+                        color = if (colors.isDark) Color(0xFF141416) else Color.White,
                         strokeWidth = 2.dp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Updating Password...", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Verifying & Resetting...", fontWeight = FontWeight.Bold)
                 } else {
-                    Text("Update Password", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Reset Password", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
 
@@ -437,7 +468,7 @@ fun ForgotPasswordScreen(navController: NavController) {
             // Back to Login Link
             TextButton(
                 onClick = { navController.popBackStack() },
-                colors = ButtonDefaults.textButtonColors(contentColor = ShaadiGold)
+                colors = ButtonDefaults.textButtonColors(contentColor = brandGold)
             ) {
                 Text(
                     text = "Remember your password? Log In",
@@ -449,3 +480,5 @@ fun ForgotPasswordScreen(navController: NavController) {
         }
     }
 }
+}
+

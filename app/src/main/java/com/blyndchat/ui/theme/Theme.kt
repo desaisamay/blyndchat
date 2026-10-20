@@ -73,62 +73,62 @@ data class AppThemeColors(
 
 val DarkAppColors = AppThemeColors(
     isDark = true,
-    topBarContainer = Color(0xFF0F081C),
+    topBarContainer = Color(0xFF141416),
     topBarTitle = Color.White,
     topBarSubtitle = LuxuryGold,
     screenBackgroundBrush = Brush.verticalGradient(
         colors = listOf(
-            Color(0xFF0D0618),
-            Color(0xFF140924),
-            Color(0xFF0A0413)
+            Color(0xFF121214),
+            Color(0xFF18181C),
+            Color(0xFF121214)
         )
     ),
-    bottomBarContainer = Color(0xFF0F071D),
+    bottomBarContainer = Color(0xFF141416),
     bottomBarSelectedIndicator = LuxuryGold,
-    bottomBarSelectedIcon = Color(0xFF140826),
-    bottomBarUnselected = Color(0xFF8E82A6),
-    cardContainer = Color(0xFF160B29),
+    bottomBarSelectedIcon = Color(0xFF141416),
+    bottomBarUnselected = Color(0xFF8E8E98),
+    cardContainer = Color(0xFF1C1C20),
     cardBorder = Brush.linearGradient(
         colors = listOf(
             LuxuryGold.copy(alpha = 0.8f),
             LuxuryRose.copy(alpha = 0.7f),
-            Color(0xFF9D4EDD).copy(alpha = 0.6f),
+            Color(0xFFFFB03A).copy(alpha = 0.6f),
             LuxuryGold.copy(alpha = 0.8f)
         )
     ),
-    cardBorderSubtle = Color(0x33FFFFFF),
-    cardShadowSpot = LuxuryRose.copy(alpha = 0.35f),
-    textPrimary = Color.White,
-    textSecondary = Color(0xFFC7B8E0),
-    textMuted = Color(0xFF8E82A6),
-    badgeBackground = Color(0xCC0D0618),
+    cardBorderSubtle = Color(0xFF2E2E34),
+    cardShadowSpot = Color.Black.copy(alpha = 0.5f),
+    textPrimary = Color(0xFFF4F4F6),
+    textSecondary = Color(0xFFA1A1AA),
+    textMuted = Color(0xFF71717A),
+    badgeBackground = Color(0xDD141416),
     badgeBorder = LuxuryGold.copy(alpha = 0.6f),
     scrimColors = listOf(
         Color.Transparent,
-        Color(0x99160B29),
-        Color(0xFF160B29)
+        Color(0x991C1C20),
+        Color(0xFF1C1C20)
     ),
-    traitChipContainer = Color(0xFF22133D),
-    traitChipText = Color(0xFFF0EBF8),
+    traitChipContainer = Color(0xFF26262B),
+    traitChipText = Color(0xFFF4F4F6),
     traitChipBorder = Color(0x33FFD700),
-    skipButtonContainer = Color(0xFF24143D),
-    skipButtonBorder = Color(0x44FFFFFF),
+    skipButtonContainer = Color(0xFF222226),
+    skipButtonBorder = Color(0x33FFFFFF),
     skipButtonIcon = Color(0xFFFF6584),
-    chatBubblePeerContainer = Color(0xFF1D1135),
+    chatBubblePeerContainer = Color(0xFF24242A),
     chatBubblePeerBorder = Color(0x33FFD700),
-    chatBubblePeerText = Color(0xFFF0EBF8),
-    chatInputContainer = Color(0xFF0F071D),
-    chatInputFieldContainer = Color(0xFF190E2E),
+    chatBubblePeerText = Color(0xFFF4F4F6),
+    chatInputContainer = Color(0xFF141416),
+    chatInputFieldContainer = Color(0xFF222227),
     chatInputText = Color.White,
-    chatInputPlaceholder = Color(0xFF8E82A6),
-    chatInputBorder = Color(0x44FFFFFF),
-    detailTileContainer = Color(0xFF160B29),
+    chatInputPlaceholder = Color(0xFF8E8E98),
+    chatInputBorder = Color(0x33FFFFFF),
+    detailTileContainer = Color(0xFF1E1E23),
     detailTileBorder = Color(0x26FFD700),
-    detailTileLabel = Color(0xFF8E82A6),
+    detailTileLabel = Color(0xFF8E8E98),
     detailTileValue = Color.White,
-    emptyStateCard = Color(0xFF160B29),
+    emptyStateCard = Color(0xFF1C1C20),
     emptyStateBorder = Color(0x33FFD700),
-    dividerColor = Color(0x22FFFFFF)
+    dividerColor = Color(0xFF2A2A30)
 )
 
 val WhiteAppColors = AppThemeColors(
@@ -262,7 +262,7 @@ private val FancyDarkScheme: ColorScheme = darkColorScheme(
     onPrimary = Color.White,
     secondary = LuxuryGold,
     onSecondary = LuxuryObsidian,
-    tertiary = ShaadiPurple,
+    tertiary = Color(0xFFFFB03A),
     onTertiary = Color.White,
     background = LuxuryObsidian,
     onBackground = LuxuryTextPrimary,
@@ -270,6 +270,7 @@ private val FancyDarkScheme: ColorScheme = darkColorScheme(
     onSurface = LuxuryTextPrimary,
     surfaceVariant = LuxurySurfaceVariant,
     onSurfaceVariant = LuxuryTextSecondary,
+    surfaceTint = Color.Transparent,
     error = ShaadiRed,
     onError = Color.White
 )

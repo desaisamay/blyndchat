@@ -122,7 +122,7 @@ object BotReplyScheduler {
                     content = reply,
                     createdAt = BotMessageStore.nowTimestamp()
                 )
-                BotMessageStore.addMessage(conversationId, botMsg)
+                BotMessageStore.addMessage(conversationId, botMsg, isIncoming = true)
                 Log.d(TAG, "Delivered reply for $botId in $conversationId: $reply")
 
                 // 7. Post system notification

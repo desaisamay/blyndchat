@@ -30,10 +30,11 @@ import android.util.Log
 
 @Composable
 fun LoginScreen(navController: NavController) {
-    var email by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val store = remember { CredentialStore(context.applicationContext) }
+    var email by remember { mutableStateOf(store.getEmail() ?: "") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
     val auth: AuthRepository = remember {
         when {
             BuildConfig.USE_SUPABASE_AUTH -> SupabaseAuthRepository.getInstance(context)
@@ -41,7 +42,6 @@ fun LoginScreen(navController: NavController) {
             else -> LocalAuthRepository.getInstance(context)
         }
     }
-    val store = remember { CredentialStore(context.applicationContext) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -229,22 +229,6 @@ fun LoginScreen(navController: NavController) {
             colors = ButtonDefaults.textButtonColors(contentColor = ShaadiGold)
         ) {
             Text("Don't have an account? Sign Up")
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        OutlinedButton(
-            onClick = {
-                store.saveToken("guest_session_token")
-                store.saveUserId("user_guest")
-                navController.navigate("home") {
-                    popUpTo("login") { inclusive = true }
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = ShaadiGold)
-        ) {
-            Text("Explore as Guest / Demo")
         }
         }
     }

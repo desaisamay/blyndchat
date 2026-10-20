@@ -43,7 +43,7 @@ fun ThemeSettingsScreen(navController: NavController) {
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = if (colors.isDark) Color.White else Color(0xFF150D24),
+                            color = if (colors.isDark) Color.White else Color(0xFF141416),
                             shadowElevation = 3.dp,
                             modifier = Modifier.size(38.dp)
                         ) {
@@ -51,7 +51,7 @@ fun ThemeSettingsScreen(navController: NavController) {
                                 Icon(
                                     imageVector = Icons.Filled.ArrowBack,
                                     contentDescription = "Back",
-                                    tint = if (colors.isDark) Color(0xFF150D24) else Color.White,
+                                    tint = if (colors.isDark) Color(0xFF141416) else Color.White,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -60,7 +60,7 @@ fun ThemeSettingsScreen(navController: NavController) {
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = colors.topBarContainer,
-                    navigationIconContentColor = if (colors.isDark) Color.White else Color(0xFF150D24),
+                    navigationIconContentColor = if (colors.isDark) Color.White else Color(0xFF141416),
                     titleContentColor = colors.topBarTitle
                 )
             )
@@ -93,8 +93,8 @@ fun ThemeSettingsScreen(navController: NavController) {
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         RowOption(
-                            label = "Current Theme (Black)",
-                            subtitle = "Fancy luxury dark aesthetic with gold accents",
+                            label = "Dark Grey (Default)",
+                            subtitle = "Sleek dark grey charcoal aesthetic with luxury accents",
                             selected = selected == "black",
                             textColor = colors.textPrimary,
                             subtextColor = colors.textSecondary

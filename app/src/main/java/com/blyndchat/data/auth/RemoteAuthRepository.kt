@@ -37,6 +37,29 @@ class RemoteAuthRepository private constructor(
 
     override fun currentUserEmail(): String? = store.getEmail()
 
+    override fun getSecurityQuestion(email: String): String? {
+        return store.getSecurityQuestion(email)
+    }
+
+    override fun validateSecurityAnswer(email: String, answer: String): Boolean {
+        return store.validateSecurityAnswer(email, answer)
+    }
+
+    override suspend fun resetPasswordWithSecurityAnswer(
+        email: String,
+        answer: String,
+        newPassword: String
+    ): Result<Unit> = runCatching {
+        require(email.isNotBlank()) { "Email is required" }
+        require(answer.isNotBlank()) { "Secret answer is required" }
+        require(newPassword.length >= 6) { "Password must be at least 6 characters" }
+        val isValid = store.validateSecurityAnswer(email.trim(), answer)
+        require(isValid) { "Incorrect answer to the secret question. Please try again." }
+        val hash = at.favre.lib.crypto.bcrypt.BCrypt.withDefaults().hashToString(12, newPassword.toCharArray())
+        store.saveCredentials(email.trim(), hash)
+        store.savePasswordForEmail(email.trim(), newPassword)
+    }
+
     override suspend fun sendPasswordResetOtp(email: String): Result<Unit> = runCatching {
         require(email.isNotBlank()) { "Email is required" }
         // Remote auth stub

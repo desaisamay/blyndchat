@@ -32,34 +32,50 @@ class SeedProfilesAndBotTest {
 
     @Test
     fun testGenderFilteredSeedProfiles() {
-        // For Male users, female profiles must be shown
+        // For Male users, female profiles must be shown with female AI generated avatars
         val forMale = SeedProfiles.getSeedProfiles(userGender = "Male")
         assertEquals(60, forMale.size)
-        forMale.forEach { assertEquals("Female", it.gender) }
+        forMale.forEach { profile ->
+            assertEquals("Female", profile.gender)
+            assertTrue("Female profile must have female avatar photo: ${profile.imageUrl}",
+                profile.imageUrl.contains("avatars/female_") && profile.imageUrl.endsWith(".png"))
+        }
 
-        // For Female users, male profiles must be shown
+        // For Female users, male profiles must be shown with male AI generated avatars
         val forFemale = SeedProfiles.getSeedProfiles(userGender = "Female")
         assertEquals(60, forFemale.size)
-        forFemale.forEach { assertEquals("Male", it.gender) }
+        forFemale.forEach { profile ->
+            assertEquals("Male", profile.gender)
+            assertTrue("Male profile must have male avatar photo: ${profile.imageUrl}",
+                profile.imageUrl.contains("avatars/male_") && profile.imageUrl.endsWith(".png"))
+        }
     }
 
     @Test
     fun testGenderSwappedAiModels() {
-        // When user is Male: AI models should be 3 Female bots
+        // When user is Male: AI models should be 3 Female bots with female AI photos
         val femaleBots = AiBotConfig.getBotProfiles(userGender = "Male")
         assertEquals(3, femaleBots.size)
         assertEquals("Aria Sharma", femaleBots[0].name)
         assertEquals("Maya Reddy", femaleBots[1].name)
         assertEquals("Zara Khan", femaleBots[2].name)
-        femaleBots.forEach { assertEquals("Female", it.gender) }
+        femaleBots.forEach {
+            assertEquals("Female", it.gender)
+            assertTrue("Female bot must have female avatar: ${it.imageUrl}",
+                it.imageUrl.contains("avatars/female_") && it.imageUrl.endsWith(".png"))
+        }
 
-        // When user is Female: AI models should be 3 Male bots
+        // When user is Female: AI models should be 3 Male bots with male AI photos
         val maleBots = AiBotConfig.getBotProfiles(userGender = "Female")
         assertEquals(3, maleBots.size)
         assertEquals("Kabir Sharma", maleBots[0].name)
         assertEquals("Rohan Reddy", maleBots[1].name)
         assertEquals("Aarav Khan", maleBots[2].name)
-        maleBots.forEach { assertEquals("Male", it.gender) }
+        maleBots.forEach {
+            assertEquals("Male", it.gender)
+            assertTrue("Male bot must have male avatar: ${it.imageUrl}",
+                it.imageUrl.contains("avatars/male_") && it.imageUrl.endsWith(".png"))
+        }
     }
 
     @Test
@@ -194,24 +210,16 @@ class SeedProfilesAndBotTest {
 
     @Test
     fun testBot3PersonaZaraCaring() {
-        // Bot 3: Persona "caring" (warm, deeply caring, empathetic, supportive)
+        // Bot 3: Persona "casual human" (short, no smileys/emojis, no formal punctuation)
         val greetingReply = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_ZARA, "hello")
-        assertTrue("Zara greeting should be warm and gentle: $greetingReply", greetingReply.contains("🌸") || greetingReply.contains("✨") || greetingReply.contains("😊"))
+        assertTrue("Zara greeting should be short: $greetingReply", greetingReply.length <= 40)
+        assertFalse("Zara greeting should have no emojis: $greetingReply", greetingReply.contains("🌸") || greetingReply.contains("✨") || greetingReply.contains("😊"))
 
         val howAreYou = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_ZARA, "how are you?")
-        assertTrue(
-            "Zara reply should check in warmly: $howAreYou",
-            howAreYou.contains("rest") || howAreYou.contains("hydrated") || howAreYou.contains("stressful") ||
-                howAreYou.contains("feeling") || howAreYou.contains("smile")
-        )
+        assertTrue("Zara reply should be casual and lowercase: $howAreYou", howAreYou == howAreYou.lowercase())
 
         val tiredMsg = com.blyndchat.data.ai.AiBotEngine.generateReply(AiBotConfig.BOT_ID_ZARA, "I had such a hard and exhausting day at work")
-        assertTrue(
-            "Zara should provide empathetic comfort: $tiredMsg",
-            tiredMsg.contains("rest") || tiredMsg.contains("tea") || tiredMsg.contains("hug") ||
-                tiredMsg.contains("sorry") || tiredMsg.contains("breathe") || tiredMsg.contains("care") ||
-                tiredMsg.contains("health")
-        )
+        assertFalse("Zara reply should have no emojis: $tiredMsg", tiredMsg.contains("🌸") || tiredMsg.contains("✨") || tiredMsg.contains("😊"))
     }
 
     @Test
@@ -219,8 +227,15 @@ class SeedProfilesAndBotTest {
         // Reset in-memory state for fresh testing
         com.blyndchat.data.ai.BotInterestStore.resetForTesting()
 
-        // 1. By default, all 3 AI bots automatically send requests to the user
-        assertEquals("Should have 3 pending bot requests by default", 3, com.blyndchat.data.ai.BotInterestStore.pendingCount())
+        // 1. Fresh reset: bots start at "none" until scheduled
+        assertEquals("Initial pending count is 0 until scheduled", 0, com.blyndchat.data.ai.BotInterestStore.pendingCount())
+
+        // Mark as pending to test acceptance/rejection/blocking workflow
+        com.blyndchat.data.ai.BotInterestStore.markAsPendingForTesting(AiBotConfig.BOT_ID_ARIA)
+        com.blyndchat.data.ai.BotInterestStore.markAsPendingForTesting(AiBotConfig.BOT_ID_MAYA)
+        com.blyndchat.data.ai.BotInterestStore.markAsPendingForTesting(AiBotConfig.BOT_ID_ZARA)
+
+        assertEquals("Should have 3 pending bot requests", 3, com.blyndchat.data.ai.BotInterestStore.pendingCount())
         assertTrue("Aria should be pending", com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_ARIA))
         assertTrue("Maya should be pending", com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_MAYA))
         assertTrue("Zara should be pending", com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_ZARA))
@@ -290,5 +305,111 @@ class SeedProfilesAndBotTest {
         assertTrue(com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_ARIA))
         assertTrue(com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_MAYA))
         assertTrue(com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_ZARA))
+
+        // 5. Block peer test
+        com.blyndchat.data.ai.BotInterestStore.blockPeer(context = null, peerId = AiBotConfig.BOT_ID_ARIA)
+        assertTrue("Aria should be blocked", com.blyndchat.data.ai.BotInterestStore.isBlocked(AiBotConfig.BOT_ID_ARIA))
+        assertFalse("Aria should not be accepted when blocked", com.blyndchat.data.ai.BotInterestStore.isAccepted(AiBotConfig.BOT_ID_ARIA))
+        assertFalse("Aria should not be pending when blocked", com.blyndchat.data.ai.BotInterestStore.isPending(AiBotConfig.BOT_ID_ARIA))
+    }
+
+    @Test
+    fun testOutgoingRequestAndDelayedAcceptanceWorkflow() = kotlinx.coroutines.runBlocking {
+        com.blyndchat.data.ai.BotInterestStore.resetForTesting()
+
+        val seedId = "seed_f_02" // Diya Patel
+        // 1. Initial state: not accepted, not pending
+        assertFalse("Seed profile should not be accepted initially", com.blyndchat.data.ai.BotInterestStore.isAccepted(seedId))
+        assertFalse("Seed profile should not be outgoing pending initially", com.blyndchat.data.ai.BotInterestStore.isOutgoingPending(seedId))
+
+        // 2. User right swipes / sends outgoing request
+        var acceptedCallbackFired = false
+        com.blyndchat.data.ai.BotInterestStore.sendOutgoingRequest(
+            context = null,
+            peerId = seedId,
+            peerName = "Diya Patel",
+            effectiveUid = "user_test_456",
+            delayMs = 100L, // Fast for unit testing
+            onAccepted = { acceptedCallbackFired = true }
+        )
+
+        // Immediately after sending: status is outgoing pending, NOT accepted
+        assertTrue("Seed profile must be in outgoing pending state", com.blyndchat.data.ai.BotInterestStore.isOutgoingPending(seedId))
+        assertFalse("Seed profile must NOT be accepted yet", com.blyndchat.data.ai.BotInterestStore.isAccepted(seedId))
+        assertFalse("Accepted bot IDs must not contain seed profile while pending", com.blyndchat.data.ai.BotInterestStore.getAcceptedBotIds().contains(seedId))
+
+        // 3. Wait for realistic acceptance delay to complete
+        kotlinx.coroutines.delay(250L)
+
+        // After acceptance: status is accepted, present in getAcceptedBotIds
+        assertTrue("Callback should have fired", acceptedCallbackFired)
+        assertTrue("Seed profile must now be accepted", com.blyndchat.data.ai.BotInterestStore.isAccepted(seedId))
+        assertFalse("Seed profile should no longer be outgoing pending", com.blyndchat.data.ai.BotInterestStore.isOutgoingPending(seedId))
+        assertTrue("Accepted bot IDs must now include seed profile", com.blyndchat.data.ai.BotInterestStore.getAcceptedBotIds().contains(seedId))
+
+        // BotMessageStore conversation initialized
+        val convoId = com.blyndchat.data.ai.BotMessageStore.conversationId("user_test_456", seedId)
+        assertTrue("Conversation must be initialized in BotMessageStore after acceptance", com.blyndchat.data.ai.BotMessageStore.hasConversation(convoId))
+    }
+
+    @Test
+    fun testUnreadSymbolAndConversationSortingWorkflow() {
+        val user = "user_test_789"
+        val peerA = "peer_aria"
+        val peerB = "peer_maya"
+
+        val convoA = com.blyndchat.data.ai.BotMessageStore.conversationId(user, peerA)
+        val convoB = com.blyndchat.data.ai.BotMessageStore.conversationId(user, peerB)
+
+        com.blyndchat.data.ai.BotMessageStore.clearForTesting()
+        com.blyndchat.data.ai.BotMessageStore.initConversation(convoA, timestamp = 1000L)
+        com.blyndchat.data.ai.BotMessageStore.initConversation(convoB, timestamp = 2000L)
+
+        // Initially convoB has higher timestamp (2000 > 1000), neither has unread
+        assertFalse("convoA must not be unread initially", com.blyndchat.data.ai.BotMessageStore.isUnread(convoA))
+        assertFalse("convoB must not be unread initially", com.blyndchat.data.ai.BotMessageStore.isUnread(convoB))
+        assertEquals(0, com.blyndchat.data.ai.BotMessageStore.totalUnreadCount())
+
+        val initialOrder = listOf(convoA, convoB).sortedByDescending {
+            com.blyndchat.data.ai.BotMessageStore.getLastActivityTimestamp(it)
+        }
+        assertEquals(convoB, initialOrder[0])
+        assertEquals(convoA, initialOrder[1])
+
+        // Now incoming message is received in convoA from peerA
+        val incomingMsg = com.blyndchat.network.MessageDto(
+            id = "bot_msg_999",
+            conversationId = convoA,
+            senderId = peerA,
+            receiverId = user,
+            content = "Hey there, loved your profile!",
+            createdAt = com.blyndchat.data.ai.BotMessageStore.nowTimestamp()
+        )
+        com.blyndchat.data.ai.BotMessageStore.addMessage(convoA, incomingMsg, isIncoming = true)
+
+        // 1. convoA must now be unread with unreadCount = 1
+        assertTrue("convoA must now be unread", com.blyndchat.data.ai.BotMessageStore.isUnread(convoA))
+        assertEquals(1, com.blyndchat.data.ai.BotMessageStore.unreadCount(convoA))
+        assertEquals(1, com.blyndchat.data.ai.BotMessageStore.totalUnreadCount())
+
+        // 2. convoA timestamp is now updated to current time (> 2000L), so it sorts to the top!
+        val updatedOrder = listOf(convoA, convoB).sortedByDescending {
+            com.blyndchat.data.ai.BotMessageStore.getLastActivityTimestamp(it)
+        }
+        assertEquals("convoA must now be on top of conversations list", convoA, updatedOrder[0])
+        assertEquals(convoB, updatedOrder[1])
+
+        // 3. User opens chat -> markAsRead
+        com.blyndchat.data.ai.BotMessageStore.markAsRead(convoA)
+        assertFalse("convoA must no longer be unread after reading", com.blyndchat.data.ai.BotMessageStore.isUnread(convoA))
+        assertEquals(0, com.blyndchat.data.ai.BotMessageStore.unreadCount(convoA))
+        assertEquals(0, com.blyndchat.data.ai.BotMessageStore.totalUnreadCount())
+
+        // convoA remains on top because of its activity timestamp
+        val postReadOrder = listOf(convoA, convoB).sortedByDescending {
+            com.blyndchat.data.ai.BotMessageStore.getLastActivityTimestamp(it)
+        }
+        assertEquals("convoA must remain on top after being read", convoA, postReadOrder[0])
     }
 }
+
