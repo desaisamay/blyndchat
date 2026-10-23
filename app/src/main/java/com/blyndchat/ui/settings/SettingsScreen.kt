@@ -213,6 +213,8 @@ fun SettingsScreen(navController: NavController) {
                         TextButton(onClick = {
                             showLogoutDialog = false
                             store.clear()
+                            com.blyndchat.data.ai.BotInterestStore.clearForLogout(context)
+                            com.blyndchat.data.ai.BotMessageStore.clearAll()
                             navController.navigate("login") {
                                 popUpTo(0) { inclusive = true }
                             }

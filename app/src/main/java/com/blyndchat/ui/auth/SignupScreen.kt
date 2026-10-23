@@ -51,10 +51,10 @@ fun SignupScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
-    var gender by remember { mutableStateOf("Female") }
-    var selectedAvatar by remember { mutableStateOf(AvatarCatalog.defaultAvatarForGender("Female")) }
+    var gender by remember { mutableStateOf("Male") }
+    var selectedAvatar by remember { mutableStateOf(AvatarCatalog.defaultAvatarForGender("Male")) }
     var showAvatarDialog by remember { mutableStateOf(false) }
-    var dialogGenderTab by remember { mutableStateOf("Female") }
+    var dialogGenderTab by remember { mutableStateOf("Male") }
 
     // Security Question & Answer for password recovery
     var securityQuestion by remember { mutableStateOf(SecurityQuestions.defaultQuestion) }
@@ -183,7 +183,7 @@ fun SignupScreen(navController: NavController) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf("Female" to "👩 Female (10)", "Male" to "👨 Male (10)").forEach { (gVal, gLabel) ->
+                        listOf("Male" to "👨 Male (10)", "Female" to "👩 Female (10)").forEach { (gVal, gLabel) ->
                             val isTabSelected = dialogGenderTab.equals(gVal, ignoreCase = true)
                             Box(
                                 modifier = Modifier
@@ -357,7 +357,7 @@ fun SignupScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                listOf("Female" to "👩 Female", "Male" to "👨 Male").forEach { (gVal, gLabel) ->
+                listOf("Male" to "👨 Male", "Female" to "👩 Female").forEach { (gVal, gLabel) ->
                     val isSelected = gender.equals(gVal, ignoreCase = true)
                     Box(
                         modifier = Modifier
@@ -614,7 +614,7 @@ fun SignupScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("Female", "Male", "Non-binary").forEach { g ->
+                listOf("Male", "Female", "Non-binary").forEach { g ->
                     SelectableChip(
                         text = g,
                         selected = gender == g,

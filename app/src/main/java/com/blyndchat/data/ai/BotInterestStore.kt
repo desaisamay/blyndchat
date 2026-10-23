@@ -1,6 +1,7 @@
 package com.blyndchat.data.ai
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.compose.runtime.mutableStateMapOf
 import com.blyndchat.data.model.Profile
 import com.blyndchat.notifications.NotificationUtils
@@ -11,12 +12,16 @@ import java.util.concurrent.ConcurrentHashMap
  * Manages connection requests between users, AI chatbots, and seed profiles.
  *
  * Rules:
- * 1. AI chatbots automatically send connection requests to the user (status = "pending") in Received section.
- * 2. When the user swipes right on a profile, status = "outgoing_pending" (request sent).
- * 3. Only after the other person/bot accepts (status = "accepted") does the profile appear in "Chats".
- * 4. Outgoing requests are accepted after a realistic delay (~12s) and post an Android system notification.
- *
- * State is observable in Compose via SnapshotStateMap and persisted in SharedPreferences.
+ * 1. Newly created user profiles start with NO connected profiles in chats.
+ * 2. AI chatbots send timed connection requests (status = "pending") into the Received section:
+ *    - 1st bot (Zara / Aarav): sends request after 2 minutes.
+ *    - 2nd bot (Maya / Rohan): sends request after 1 day.
+ *    - 3rd bot (Aria / Kabir): sends request after 2 days.
+ * 3. Incoming bot requests show up ONLY in ReceivedTab with a notification.
+ * 4. Only after the user accepts (status = "accepted") does the profile appear in "Chats".
+ * 5. Outgoing requests sent by user via swipe-right (status = "outgoing_pending") are accepted after ~12s.
+ * 6. SharedPreferences are strictly scoped per-user (e.g. "bot_interests_{userId}") to guarantee total
+ *    isolation when switching accounts.
  */
 object BotInterestStore {
 
@@ -27,26 +32,56 @@ object BotInterestStore {
     const val STATUS_REJECTED         = "rejected"          // Declined / passed
     const val STATUS_BLOCKED          = "blocked"           // Blocked by user
 
-    private const val PREFS_NAME = "bot_interests_prefs"
-    private const val KEY_FIRST_LOGIN_PREFIX = "first_login_time_"
+    private const val KEY_FIRST_LOGIN_TIME = "first_login_time"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val pendingAcceptanceJobs = ConcurrentHashMap<String, Job>()
     private val scheduledBotJobs = ConcurrentHashMap<String, Job>()
 
     // peerId -> status ("pending", "outgoing_pending", "accepted", "rejected", "blocked")
     private val interestState = mutableStateMapOf<String, String>()
+    private var activeUserId: String? = null
     private var isInitialized = false
 
+    private data class ScheduledBot(
+        val botId: String,
+        val defaultName: String,
+        val scheduledTime: Long
+    )
+
+    private fun getPrefs(context: Context?, userId: String?): SharedPreferences? {
+        if (context == null) return null
+        val effectiveUid = userId?.takeIf { it.isNotBlank() } ?: activeUserId?.takeIf { it.isNotBlank() } ?: "user_default"
+        return context.getSharedPreferences("bot_interests_${effectiveUid}", Context.MODE_PRIVATE)
+    }
+
     /**
-     * Initializes the store from SharedPreferences.
+     * Initializes the store for the specific user from SharedPreferences.
+     * Clears previous user's in-memory state if switching users.
      */
-    fun init(context: Context? = null) {
-        if (isInitialized) return
+    fun init(context: Context? = null, userId: String? = null) {
+        val effectiveUid = userId?.takeIf { it.isNotBlank() } ?: "user_default"
+        if (isInitialized && activeUserId == effectiveUid) return
+
+        // Switching or initializing user: cancel pending background tasks and clear in-memory state
+        pendingAcceptanceJobs.values.forEach { it.cancel() }
+        pendingAcceptanceJobs.clear()
+        scheduledBotJobs.values.forEach { it.cancel() }
+        scheduledBotJobs.clear()
+
+        interestState.clear()
+        activeUserId = effectiveUid
+
         if (context != null) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val allEntries = prefs.all
+            // Clean up legacy un-scoped preferences to prevent dirty state from older installs
+            val legacyPrefs = context.getSharedPreferences("bot_interests_prefs", Context.MODE_PRIVATE)
+            if (legacyPrefs.all.isNotEmpty()) {
+                legacyPrefs.edit().clear().apply()
+            }
+
+            val prefs = getPrefs(context, effectiveUid)
+            val allEntries = prefs?.all ?: emptyMap()
             allEntries.forEach { (key, value) ->
-                if (value is String && !key.startsWith("first_login_time_")) {
+                if (value is String && key != KEY_FIRST_LOGIN_TIME) {
                     interestState[key] = value
                 }
             }
@@ -56,9 +91,9 @@ object BotInterestStore {
 
     /**
      * Starts the bot request schedule upon first login:
-     * - Zara Khan: wait 1 min before sending first request
-     * - Maya Reddy: then after 2 mins (total 3 mins from first login)
-     * - Aria Sharma: then after 3 mins (total 6 mins from first login)
+     * - Zara Khan / Aarav Khan: sends first request after 2 minutes
+     * - Maya Reddy / Rohan Reddy: sends request after 1 day
+     * - Aria Sharma / Kabir Sharma: sends request after 2 days
      */
     fun startFirstLoginScheduleIfNeeded(
         context: Context,
@@ -66,56 +101,65 @@ object BotInterestStore {
         userGender: String?
     ) {
         val effectiveUid = userId?.takeIf { it.isNotBlank() } ?: "user_default"
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        init(context, effectiveUid)
+
+        val prefs = getPrefs(context, effectiveUid)
         val now = System.currentTimeMillis()
 
-        var firstLoginTime = prefs.getLong(KEY_FIRST_LOGIN_PREFIX + effectiveUid, 0L)
+        var firstLoginTime = prefs?.getLong(KEY_FIRST_LOGIN_TIME, 0L) ?: 0L
         if (firstLoginTime <= 0L) {
             firstLoginTime = now
-            prefs.edit().putLong(KEY_FIRST_LOGIN_PREFIX + effectiveUid, firstLoginTime).apply()
+            prefs?.edit()?.putLong(KEY_FIRST_LOGIN_TIME, firstLoginTime)?.apply()
         }
 
-        // Sequence: 1 min for Zara, then 2 mins for Maya, then 3 mins for Aria
+        // Sequence requested:
+        // 1st request after 2 mins (Zara)
+        // 2nd request after 1 day (Maya)
+        // 3rd request after 2 days (Aria)
+        val zaraName = AiBotConfig.getBotProfile(AiBotConfig.BOT_ID_ZARA, userGender)?.name ?: "Zara Khan"
+        val mayaName = AiBotConfig.getBotProfile(AiBotConfig.BOT_ID_MAYA, userGender)?.name ?: "Maya Reddy"
+        val ariaName = AiBotConfig.getBotProfile(AiBotConfig.BOT_ID_ARIA, userGender)?.name ?: "Aria Sharma"
+
         val schedule = listOf(
-            Triple(AiBotConfig.BOT_ID_ZARA, "Zara Khan", firstLoginTime + 60_000L),
-            Triple(AiBotConfig.BOT_ID_MAYA, "Maya Reddy", firstLoginTime + 180_000L),
-            Triple(AiBotConfig.BOT_ID_ARIA, "Aria Sharma", firstLoginTime + 360_000L)
+            ScheduledBot(AiBotConfig.BOT_ID_ZARA, zaraName, firstLoginTime + 2 * 60 * 1000L),
+            ScheduledBot(AiBotConfig.BOT_ID_MAYA, mayaName, firstLoginTime + 24 * 60 * 60 * 1000L),
+            ScheduledBot(AiBotConfig.BOT_ID_ARIA, ariaName, firstLoginTime + 48 * 60 * 60 * 1000L)
         )
 
         val appContext = context.applicationContext
-        schedule.forEach { (botId, defaultName, scheduledTime) ->
-            val currentStatus = interestState[botId] ?: prefs.getString(botId, null)
+        schedule.forEach { bot ->
+            val currentStatus = interestState[bot.botId] ?: prefs?.getString(bot.botId, null)
             if (currentStatus == STATUS_ACCEPTED || currentStatus == STATUS_REJECTED || currentStatus == STATUS_BLOCKED) {
-                interestState[botId] = currentStatus
+                interestState[bot.botId] = currentStatus
                 return@forEach
             }
 
             if (currentStatus == STATUS_PENDING) {
-                interestState[botId] = STATUS_PENDING
+                interestState[bot.botId] = STATUS_PENDING
                 return@forEach
             }
 
-            if (now >= scheduledTime) {
+            if (now >= bot.scheduledTime) {
                 // Scheduled arrival time has arrived
-                interestState[botId] = STATUS_PENDING
-                prefs.edit().putString(botId, STATUS_PENDING).apply()
+                interestState[bot.botId] = STATUS_PENDING
+                prefs?.edit()?.putString(bot.botId, STATUS_PENDING)?.apply()
             } else {
-                scheduledBotJobs[botId]?.cancel()
-                val delayMs = scheduledTime - now
+                scheduledBotJobs[bot.botId]?.cancel()
+                val delayMs = bot.scheduledTime - now
                 val job = scope.launch {
                     try {
                         delay(delayMs)
-                        val statusNow = interestState[botId]
+                        val statusNow = interestState[bot.botId]
                         if (statusNow == null || statusNow == STATUS_NONE) {
-                            interestState[botId] = STATUS_PENDING
-                            prefs.edit().putString(botId, STATUS_PENDING).apply()
+                            interestState[bot.botId] = STATUS_PENDING
+                            prefs?.edit()?.putString(bot.botId, STATUS_PENDING)?.apply()
 
-                            val persona = AiBotConfig.getBotProfile(botId, userGender)
-                            val name = persona?.name ?: defaultName
+                            val persona = AiBotConfig.getBotProfile(bot.botId, userGender)
+                            val name = persona?.name ?: bot.defaultName
                             NotificationUtils.showMessageNotification(
                                 context = appContext,
-                                conversationId = BotMessageStore.conversationId(effectiveUid, botId),
-                                peerId = botId,
+                                conversationId = BotMessageStore.conversationId(effectiveUid, bot.botId),
+                                peerId = bot.botId,
                                 title = name,
                                 body = "$name sent you a connection request! ✨ Tap to view"
                             )
@@ -124,7 +168,7 @@ object BotInterestStore {
                         // Cancelled
                     }
                 }
-                scheduledBotJobs[botId] = job
+                scheduledBotJobs[bot.botId] = job
             }
         }
     }
@@ -179,8 +223,8 @@ object BotInterestStore {
 
         interestState[peerId] = STATUS_OUTGOING_PENDING
         if (context != null) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().putString(peerId, STATUS_OUTGOING_PENDING).apply()
+            val prefs = getPrefs(context, effectiveUid)
+            prefs?.edit()?.putString(peerId, STATUS_OUTGOING_PENDING)?.apply()
         }
 
         pendingAcceptanceJobs[peerId]?.cancel()
@@ -224,8 +268,8 @@ object BotInterestStore {
         pendingAcceptanceJobs[botId]?.cancel()
         interestState[botId] = STATUS_ACCEPTED
         if (context != null) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().putString(botId, STATUS_ACCEPTED).apply()
+            val prefs = getPrefs(context, effectiveUid)
+            prefs?.edit()?.putString(botId, STATUS_ACCEPTED)?.apply()
         }
 
         val convoId = BotMessageStore.conversationId(effectiveUid, botId)
@@ -235,13 +279,13 @@ object BotInterestStore {
     /**
      * Declines/rejects a connection request.
      */
-    fun rejectRequest(context: Context? = null, botId: String) {
+    fun rejectRequest(context: Context? = null, botId: String, effectiveUid: String? = null) {
         pendingAcceptanceJobs[botId]?.cancel()
         scheduledBotJobs[botId]?.cancel()
         interestState[botId] = STATUS_REJECTED
         if (context != null) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().putString(botId, STATUS_REJECTED).apply()
+            val prefs = getPrefs(context, effectiveUid)
+            prefs?.edit()?.putString(botId, STATUS_REJECTED)?.apply()
         }
     }
 
@@ -249,13 +293,13 @@ object BotInterestStore {
      * Blocks a peer / bot. Cancels any pending jobs, sets status to STATUS_BLOCKED,
      * and removes from conversations.
      */
-    fun blockPeer(context: Context? = null, peerId: String) {
+    fun blockPeer(context: Context? = null, peerId: String, effectiveUid: String? = null) {
         pendingAcceptanceJobs[peerId]?.cancel()
         scheduledBotJobs[peerId]?.cancel()
         interestState[peerId] = STATUS_BLOCKED
         if (context != null) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().putString(peerId, STATUS_BLOCKED).apply()
+            val prefs = getPrefs(context, effectiveUid)
+            prefs?.edit()?.putString(peerId, STATUS_BLOCKED)?.apply()
         }
     }
 
@@ -264,16 +308,29 @@ object BotInterestStore {
         getStatus(peerId) == STATUS_BLOCKED
 
     /**
+     * Resets in-memory and scheduled jobs on logout so next login starts clean.
+     */
+    fun clearForLogout(context: Context? = null) {
+        pendingAcceptanceJobs.values.forEach { it.cancel() }
+        pendingAcceptanceJobs.clear()
+        scheduledBotJobs.values.forEach { it.cancel() }
+        scheduledBotJobs.clear()
+        interestState.clear()
+        activeUserId = null
+        isInitialized = false
+    }
+
+    /**
      * Resets all bots back to "pending" requests (useful for test/demo resets).
      */
-    fun resetToPending(context: Context? = null) {
+    fun resetToPending(context: Context? = null, effectiveUid: String? = null) {
         pendingAcceptanceJobs.values.forEach { it.cancel() }
         pendingAcceptanceJobs.clear()
         scheduledBotJobs.values.forEach { it.cancel() }
         scheduledBotJobs.clear()
         if (context != null) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().clear().apply()
+            val prefs = getPrefs(context, effectiveUid)
+            prefs?.edit()?.clear()?.apply()
         }
         interestState.clear()
         AiBotConfig.ALL_BOT_IDS.forEach { botId ->
@@ -295,7 +352,8 @@ object BotInterestStore {
         scheduledBotJobs.values.forEach { it.cancel() }
         scheduledBotJobs.clear()
         isInitialized = false
+        activeUserId = null
         interestState.clear()
-        init(null)
+        init(null, null)
     }
 }

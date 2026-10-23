@@ -119,6 +119,7 @@ fun HomeScreen(navController: NavController) {
 
     var userGender by remember { mutableStateOf(store.getUserGender()) }
     var dailyLimitTimestamp by remember { mutableStateOf(store.getDailyLimitTimestamp()) }
+    var swipeCooldownTimestamp by remember(myUid) { mutableStateOf(store.getSwipeCooldown(myUid)) }
     var lastSwipedProfile by remember { mutableStateOf<Profile?>(null) }
 
     // Fetch gender from Supabase if not yet cached locally
@@ -140,8 +141,8 @@ fun HomeScreen(navController: NavController) {
     // ---- Selected tab; preserved across navigation and seeded from SavedStateHandle "targetTab" (>=0). ----
     var targetTab by rememberSaveable { mutableIntStateOf(0) }
 
-    LaunchedEffect(Unit) {
-        BotInterestStore.init(context.applicationContext)
+    LaunchedEffect(myUid) {
+        BotInterestStore.init(context.applicationContext, myUid)
     }
 
     LaunchedEffect(myUid, userGender) {
@@ -175,39 +176,50 @@ fun HomeScreen(navController: NavController) {
     val profiles = remember { mutableStateListOf<Profile>() }
     var isLoadingProfiles by remember { mutableStateOf(true) }
 
-    // Load profiles respecting gender, ordering, 24h limit & shuffling
-    LaunchedEffect(userGender, dailyLimitTimestamp) {
-        val limitTime = store.getDailyLimitTimestamp()
+    // Load profiles respecting gender, strict sequence, 12h limit & deduplication
+    LaunchedEffect(userGender, swipeCooldownTimestamp, myUid) {
+        val cooldownTime = store.getSwipeCooldown(myUid)
         val now = System.currentTimeMillis()
-        val total24h = 24 * 60 * 60 * 1000L
+        val total12h = 12 * 60 * 60 * 1000L
 
-        if (limitTime > 0 && (now - limitTime) < total24h) {
-            dailyLimitTimestamp = limitTime
+        if (cooldownTime > 0 && (now - cooldownTime) < total12h) {
+            swipeCooldownTimestamp = cooldownTime
             profiles.clear()
             isLoadingProfiles = false
             return@LaunchedEffect
         }
 
-        val shouldShuffle = limitTime > 0 && (now - limitTime) >= total24h
-        if (shouldShuffle) {
-            store.clearDailyLimitTimestamp()
-            dailyLimitTimestamp = 0L
+        if (cooldownTime > 0 && (now - cooldownTime) >= total12h) {
+            store.clearSwipeCooldown(myUid)
+            store.resetSessionSwipeCount(myUid)
+            swipeCooldownTimestamp = 0L
         }
 
         isLoadingProfiles = true
         val result = repo.fetchProfiles(
             userGender = userGender,
             currentUserId = myUid,
-            shuffled = shouldShuffle,
             limit = 100
         )
         if (result.isSuccess) {
             profiles.clear()
             val acceptedIds = BotInterestStore.getAcceptedBotIds()
-            profiles.addAll(
-                result.getOrDefault(emptyList())
-                    .filter { it.id.isNotBlank() && it.name.isNotBlank() && !acceptedIds.contains(it.id) }
-            )
+            val rawAvailable = result.getOrDefault(emptyList())
+                .filter { it.id.isNotBlank() && it.name.isNotBlank() && !acceptedIds.contains(it.id) }
+
+            // Deduplicate profiles against already swiped IDs for this user
+            val swipedIds = store.getSwipedProfileIds(myUid)
+            val unswiped = rawAvailable.filter { !swipedIds.contains(it.id) }
+
+            // When user has swiped through all available profiles, circle back from the start
+            val finalDeck = if (unswiped.isEmpty() && rawAvailable.isNotEmpty()) {
+                store.clearSwipedProfileIds(myUid)
+                rawAvailable
+            } else {
+                unswiped
+            }
+
+            profiles.addAll(finalDeck)
         }
         isLoadingProfiles = false
     }
@@ -453,12 +465,14 @@ fun HomeScreen(navController: NavController) {
                 0 -> ProfilesTab(
                     profiles = profiles,
                     isLoading = isLoadingProfiles,
-                    dailyLimitTimestamp = dailyLimitTimestamp,
+                    swipeCooldownTimestamp = swipeCooldownTimestamp,
                     onProfileClick = { navController.navigate("profile/${it.id}") },
                     onSwipeRight = { profile ->
                         profiles.remove(profile)
                         lastSwipedProfile = profile
                         val effectiveUid = myUid?.takeIf { it.isNotBlank() } ?: "user_local"
+                        store.addSwipedProfileId(myUid, profile.id)
+                        val swipesCount = store.incrementSessionSwipeCount(myUid)
 
                         if (AiBotConfig.isBot(profile.id)) {
                             BotInterestStore.sendOutgoingRequest(
@@ -531,27 +545,36 @@ fun HomeScreen(navController: NavController) {
                                 }
                             }
                         }
-                        if (profiles.isEmpty()) {
+
+                        // Check 25 swipes limit or exhausted profiles
+                        if (swipesCount >= 25 || profiles.isEmpty()) {
                             val now = System.currentTimeMillis()
-                            store.saveDailyLimitTimestamp(now)
-                            dailyLimitTimestamp = now
+                            store.saveSwipeCooldown(myUid, now)
+                            store.resetSessionSwipeCount(myUid)
+                            swipeCooldownTimestamp = now
+                            profiles.clear()
                         }
                     },
                     onSwipeLeft = { profile ->
                         profiles.remove(profile)
                         lastSwipedProfile = profile
-                        if (profiles.isEmpty()) {
+                        store.addSwipedProfileId(myUid, profile.id)
+                        val swipesCount = store.incrementSessionSwipeCount(myUid)
+
+                        if (swipesCount >= 25 || profiles.isEmpty()) {
                             val now = System.currentTimeMillis()
-                            store.saveDailyLimitTimestamp(now)
-                            dailyLimitTimestamp = now
+                            store.saveSwipeCooldown(myUid, now)
+                            store.resetSessionSwipeCount(myUid)
+                            swipeCooldownTimestamp = now
+                            profiles.clear()
                         }
                     },
                     onUndo = {
                         lastSwipedProfile?.let { restored ->
                             profiles.add(0, restored)
                             lastSwipedProfile = null
-                            store.clearDailyLimitTimestamp()
-                            dailyLimitTimestamp = 0L
+                            store.clearSwipeCooldown(myUid)
+                            swipeCooldownTimestamp = 0L
                         }
                     },
                     canUndo = lastSwipedProfile != null,
@@ -614,7 +637,8 @@ fun HomeScreen(navController: NavController) {
                         }
                     },
                     onRejectBot = { botProfile ->
-                        BotInterestStore.rejectRequest(context, botProfile.id)
+                        val effectiveUid = myUid?.takeIf { it.isNotBlank() } ?: "user_local"
+                        BotInterestStore.rejectRequest(context, botProfile.id, effectiveUid)
                     }
                 )
 
@@ -643,7 +667,7 @@ private fun conversationIdFor(a: String?, b: String?): String {
 private fun ProfilesTab(
     profiles: SnapshotStateList<Profile>,
     isLoading: Boolean,
-    dailyLimitTimestamp: Long,
+    swipeCooldownTimestamp: Long,
     onProfileClick: (Profile) -> Unit,
     onSwipeLeft: (Profile) -> Unit,
     onSwipeRight: (Profile) -> Unit,
@@ -665,14 +689,15 @@ private fun ProfilesTab(
         return
     }
 
-    val total24h = 24 * 60 * 60 * 1000L
-    val isLimitActive = dailyLimitTimestamp > 0 &&
-        (System.currentTimeMillis() - dailyLimitTimestamp) < total24h
+    val total12h = 12 * 60 * 60 * 1000L
+    val isLimitActive = swipeCooldownTimestamp > 0 &&
+        (System.currentTimeMillis() - swipeCooldownTimestamp) < total12h
 
     if (isLimitActive || profiles.isEmpty()) {
-        val effectiveLimitTime = if (dailyLimitTimestamp > 0) dailyLimitTimestamp else System.currentTimeMillis()
+        val effectiveLimitTime = if (swipeCooldownTimestamp > 0) swipeCooldownTimestamp else System.currentTimeMillis()
         DailyLimitReachedScreen(
             limitTimestamp = effectiveLimitTime,
+            cooldownHours = 12,
             onContinueChatting = onContinueChatting
         )
         return

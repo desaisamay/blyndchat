@@ -223,6 +223,77 @@ class SeedProfilesAndBotTest {
     }
 
     @Test
+    fun testMaleBotPersonasNeverUseFemaleNames() {
+        // Resolve male profiles as seen by female users
+        val kabirProfile = AiBotConfig.getBotProfile(AiBotConfig.BOT_ID_ARIA, userGender = "Female")
+        val rohanProfile = AiBotConfig.getBotProfile(AiBotConfig.BOT_ID_MAYA, userGender = "Female")
+        val aaravProfile = AiBotConfig.getBotProfile(AiBotConfig.BOT_ID_ZARA, userGender = "Female")
+
+        assertNotNull(kabirProfile)
+        assertEquals("Kabir Sharma", kabirProfile?.name)
+        assertNotNull(rohanProfile)
+        assertEquals("Rohan Reddy", rohanProfile?.name)
+        assertNotNull(aaravProfile)
+        assertEquals("Aarav Khan", aaravProfile?.name)
+
+        // 1. Male Bot 1: Kabir Sharma
+        val kabirNameReply = com.blyndchat.data.ai.AiBotEngine.generateReply(
+            AiBotConfig.BOT_ID_ARIA, "what's your name?", botProfile = kabirProfile
+        )
+        assertTrue("Kabir name reply must contain kabir: $kabirNameReply", kabirNameReply.lowercase().contains("kabir"))
+        assertFalse("Kabir name reply must NEVER contain aria: $kabirNameReply", kabirNameReply.lowercase().contains("aria"))
+
+        val kabirJobReply = com.blyndchat.data.ai.AiBotEngine.generateReply(
+            AiBotConfig.BOT_ID_ARIA, "what is your work?", botProfile = kabirProfile
+        )
+        assertEquals("product design", kabirJobReply)
+
+        val kabirHeightReply = com.blyndchat.data.ai.AiBotEngine.generateReply(
+            AiBotConfig.BOT_ID_ARIA, "how tall are you?", botProfile = kabirProfile
+        )
+        assertEquals("5'11", kabirHeightReply)
+
+        val kabirAgeReply = com.blyndchat.data.ai.AiBotEngine.generateReply(
+            AiBotConfig.BOT_ID_ARIA, "how old are you?", botProfile = kabirProfile
+        )
+        assertEquals("27", kabirAgeReply)
+
+        // 2. Male Bot 2: Rohan Reddy
+        val rohanNameReply = com.blyndchat.data.ai.AiBotEngine.generateReply(
+            AiBotConfig.BOT_ID_MAYA, "who are you?", botProfile = rohanProfile
+        )
+        assertTrue("Rohan name reply must contain Rohan: $rohanNameReply", rohanNameReply.contains("Rohan"))
+        assertFalse("Rohan name reply must NEVER contain Maya: $rohanNameReply", rohanNameReply.contains("Maya"))
+
+        val rohanHeightReply = com.blyndchat.data.ai.AiBotEngine.generateReply(
+            AiBotConfig.BOT_ID_MAYA, "what is your height?", botProfile = rohanProfile
+        )
+        assertTrue("Rohan height must be 5'10\": $rohanHeightReply", rohanHeightReply.contains("5'10\""))
+
+        val rohanAgeReply = com.blyndchat.data.ai.AiBotEngine.generateReply(
+            AiBotConfig.BOT_ID_MAYA, "how old are you?", botProfile = rohanProfile
+        )
+        assertTrue("Rohan age must be 26: $rohanAgeReply", rohanAgeReply.contains("26"))
+
+        // 3. Male Bot 3: Aarav Khan
+        val aaravNameReply = com.blyndchat.data.ai.AiBotEngine.generateReply(
+            AiBotConfig.BOT_ID_ZARA, "what is your name?", botProfile = aaravProfile
+        )
+        assertTrue("Aarav name reply must contain aarav: $aaravNameReply", aaravNameReply.lowercase().contains("aarav"))
+        assertFalse("Aarav name reply must NEVER contain zara: $aaravNameReply", aaravNameReply.lowercase().contains("zara"))
+
+        val aaravHeightReply = com.blyndchat.data.ai.AiBotEngine.generateReply(
+            AiBotConfig.BOT_ID_ZARA, "how tall are you?", botProfile = aaravProfile
+        )
+        assertEquals("6'0 wbu", aaravHeightReply)
+
+        val aaravAgeReply = com.blyndchat.data.ai.AiBotEngine.generateReply(
+            AiBotConfig.BOT_ID_ZARA, "how old are you?", botProfile = aaravProfile
+        )
+        assertEquals("28 wbu", aaravAgeReply)
+    }
+
+    @Test
     fun testBotInterestStoreWorkflow() {
         // Reset in-memory state for fresh testing
         com.blyndchat.data.ai.BotInterestStore.resetForTesting()

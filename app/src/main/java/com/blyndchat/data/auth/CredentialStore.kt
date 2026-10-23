@@ -233,13 +233,65 @@ class CredentialStore(context: Context) {
     }
     fun getUserGender(): String? = prefs.getString(KEY_USER_GENDER, null) ?: getPendingGender()
 
-    // 24-hour daily profile limit timestamp
+    // 24-hour / 12-hour profile limit timestamp
     fun saveDailyLimitTimestamp(timestamp: Long) {
         prefs.edit().putLong(KEY_DAILY_LIMIT_TIMESTAMP, timestamp).apply()
     }
     fun getDailyLimitTimestamp(): Long = prefs.getLong(KEY_DAILY_LIMIT_TIMESTAMP, 0L)
     fun clearDailyLimitTimestamp() {
         prefs.edit().remove(KEY_DAILY_LIMIT_TIMESTAMP).apply()
+    }
+
+    // 12-hour account swipe cooldown
+    fun saveSwipeCooldown(userId: String?, timestamp: Long) {
+        val uid = userId?.takeIf { it.isNotBlank() } ?: "default"
+        prefs.edit().putLong("swipe_cooldown_$uid", timestamp).apply()
+    }
+
+    fun getSwipeCooldown(userId: String?): Long {
+        val uid = userId?.takeIf { it.isNotBlank() } ?: "default"
+        return prefs.getLong("swipe_cooldown_$uid", 0L)
+    }
+
+    fun clearSwipeCooldown(userId: String?) {
+        val uid = userId?.takeIf { it.isNotBlank() } ?: "default"
+        prefs.edit().remove("swipe_cooldown_$uid").apply()
+    }
+
+    // Session swipe counter (25 swipes limit)
+    fun getSessionSwipeCount(userId: String?): Int {
+        val uid = userId?.takeIf { it.isNotBlank() } ?: "default"
+        return prefs.getInt("session_swipes_$uid", 0)
+    }
+
+    fun incrementSessionSwipeCount(userId: String?): Int {
+        val uid = userId?.takeIf { it.isNotBlank() } ?: "default"
+        val count = getSessionSwipeCount(userId) + 1
+        prefs.edit().putInt("session_swipes_$uid", count).apply()
+        return count
+    }
+
+    fun resetSessionSwipeCount(userId: String?) {
+        val uid = userId?.takeIf { it.isNotBlank() } ?: "default"
+        prefs.edit().remove("session_swipes_$uid").apply()
+    }
+
+    // Swiped profile IDs for deduplication across sessions
+    fun getSwipedProfileIds(userId: String?): Set<String> {
+        val uid = userId?.takeIf { it.isNotBlank() } ?: "default"
+        return prefs.getStringSet("swiped_profiles_$uid", emptySet()) ?: emptySet()
+    }
+
+    fun addSwipedProfileId(userId: String?, profileId: String) {
+        val uid = userId?.takeIf { it.isNotBlank() } ?: "default"
+        val current = getSwipedProfileIds(userId).toMutableSet()
+        current.add(profileId)
+        prefs.edit().putStringSet("swiped_profiles_$uid", current).apply()
+    }
+
+    fun clearSwipedProfileIds(userId: String?) {
+        val uid = userId?.takeIf { it.isNotBlank() } ?: "default"
+        prefs.edit().remove("swiped_profiles_$uid").apply()
     }
 
     companion object {

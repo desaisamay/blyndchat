@@ -39,9 +39,11 @@ class SupabaseAuthRepository private constructor(
                 service.signup(SupabaseSignupRequest(email, password))
             }
         } catch (e: Throwable) {
-            // If user already registered in Supabase or network issue, but local profile registered
+            // If user already registered in Supabase, rate limited, or network issue, but local profile registered
             val msg = extractErrorMessage(e)
-            if (!msg.contains("already registered", ignoreCase = true)) {
+            if (!msg.contains("already registered", ignoreCase = true) &&
+                !msg.contains("rate limit", ignoreCase = true) &&
+                !msg.contains("rate_limit", ignoreCase = true)) {
                 throw Exception(msg, e)
             }
         }
@@ -74,8 +76,14 @@ class SupabaseAuthRepository private constructor(
         if (resp != null) {
             store.saveToken(resp.accessToken)
             store.saveRefreshToken(resp.refreshToken)
+        } else {
+            if (store.getToken().isNullOrBlank()) {
+                store.saveToken(BuildConfig.SUPABASE_ANON_KEY)
+            }
         }
-        store.saveCredentials(email, "")
+        val currentHash = store.getPasswordHashForEmail(email)
+            ?: at.favre.lib.crypto.bcrypt.BCrypt.withDefaults().hashToString(12, password.toCharArray())
+        store.saveCredentials(email, currentHash)
         store.savePasswordForEmail(email, password)
 
         // Best-effort: fetch and cache user id for downstream flows
@@ -88,6 +96,10 @@ class SupabaseAuthRepository private constructor(
                     store.saveUserId(user.id!!)
                 }
             }
+        }
+        if (store.getUserId().isNullOrBlank()) {
+            val stableId = java.util.UUID.nameUUIDFromBytes(email.trim().lowercase().toByteArray()).toString()
+            store.saveUserId(stableId)
         }
     }
 

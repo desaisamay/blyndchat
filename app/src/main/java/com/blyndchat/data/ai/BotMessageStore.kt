@@ -115,13 +115,18 @@ object BotMessageStore {
         }
     }
 
-    /** Resets in-memory store for pure unit testing. */
-    fun clearForTesting() {
+    /** Resets in-memory store (e.g. on user logout). */
+    fun clearAll() {
         store.clear()
         typingState.clear()
         lastActivityTimestamps.clear()
         unreadState.clear()
         activeConversationId = null
+    }
+
+    /** Resets in-memory store for pure unit testing. */
+    fun clearForTesting() {
+        clearAll()
     }
 
     /** The last message in a conversation, if any. */

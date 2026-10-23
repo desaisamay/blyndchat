@@ -2,6 +2,9 @@ package com.blyndchat.data.ai
 
 import android.content.Context
 import android.util.Log
+import com.blyndchat.data.auth.CredentialStore
+import com.blyndchat.data.model.Profile
+import com.blyndchat.data.profile.SeedProfiles
 import com.blyndchat.network.MessageDto
 import com.blyndchat.notifications.NotificationUtils
 import kotlinx.coroutines.*
@@ -74,7 +77,8 @@ object BotReplyScheduler {
         userMessage: String,
         chatTitle: String,
         receiverId: String,
-        customTiming: Pair<Long, Long>? = null
+        customTiming: Pair<Long, Long>? = null,
+        botProfile: Profile? = null
     ) {
         // Cancel any previous pending response for this conversation
         activeJobs[conversationId]?.cancel()
@@ -83,6 +87,11 @@ object BotReplyScheduler {
         val (rawPreTyping, typingDuration) = customTiming ?: getTimingConfig(botId)
         // Never start typing immediately: always wait at least 10 seconds before typing
         val preTypingDelay = if (customTiming != null) rawPreTyping else rawPreTyping.coerceAtLeast(10_000L)
+
+        val resolvedProfile = botProfile
+            ?: CredentialStore(appContext).getUserGender()?.let { AiBotConfig.getBotProfile(botId, it) }
+            ?: SeedProfiles.getProfileById(botId)
+            ?: AiBotConfig.getBotProfile(botId)
 
         val job = scope.launch {
             try {
@@ -102,7 +111,8 @@ object BotReplyScheduler {
                 val reply = GeminiChatService.generateReply(
                     botId = botId,
                     userMessage = userMessage,
-                    messagesHistory = currentHistory
+                    messagesHistory = currentHistory,
+                    botProfile = resolvedProfile
                 )
 
                 // 4. Wait out the typing animation

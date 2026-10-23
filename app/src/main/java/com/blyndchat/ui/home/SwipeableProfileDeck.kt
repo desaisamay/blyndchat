@@ -657,21 +657,21 @@ private fun DeckTraitBadge(text: String) {
 fun DailyLimitReachedScreen(
     limitTimestamp: Long,
     onContinueChatting: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    cooldownHours: Int = 12
 ) {
     val colors = com.blyndchat.ui.theme.LocalAppColors.current
+    val totalCooldown = cooldownHours * 60 * 60 * 1000L
     var remainingMillis by remember(limitTimestamp) {
-        val total24h = 24 * 60 * 60 * 1000L
         val elapsed = System.currentTimeMillis() - limitTimestamp
-        mutableStateOf(maxOf(0L, total24h - elapsed))
+        mutableStateOf(maxOf(0L, totalCooldown - elapsed))
     }
 
     LaunchedEffect(limitTimestamp) {
         while (remainingMillis > 0) {
             delay(1000L)
-            val total24h = 24 * 60 * 60 * 1000L
             val elapsed = System.currentTimeMillis() - limitTimestamp
-            remainingMillis = maxOf(0L, total24h - elapsed)
+            remainingMillis = maxOf(0L, totalCooldown - elapsed)
         }
     }
 
@@ -722,7 +722,7 @@ fun DailyLimitReachedScreen(
                 Spacer(modifier = Modifier.height(18.dp))
 
                 Text(
-                    text = "You're All Caught Up! ✨",
+                    text = "You've Swiped Enough for Today ✨",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 22.sp
@@ -734,7 +734,7 @@ fun DailyLimitReachedScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "You've viewed all available profiles for today. Your daily profile deck will reset and shuffle in:",
+                    text = "You have swiped enough for today. Come back after 12 hours for new profiles!",
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.textSecondary,
                     textAlign = TextAlign.Center,

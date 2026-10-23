@@ -620,7 +620,8 @@ fun ChatScreen(navController: NavController, conversationId: String?, peerId: St
                                         botId = other,
                                         userMessage = text,
                                         chatTitle = chatTitle,
-                                        receiverId = me
+                                        receiverId = me,
+                                        botProfile = botProfile
                                     )
                                 } else {
                                     runCatching {

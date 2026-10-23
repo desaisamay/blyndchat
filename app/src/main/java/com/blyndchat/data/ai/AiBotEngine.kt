@@ -1,5 +1,6 @@
 package com.blyndchat.data.ai
 
+import com.blyndchat.data.model.Profile
 import kotlin.random.Random
 
 /**
@@ -7,7 +8,7 @@ import kotlin.random.Random
  * human-like dating & matchmaking conversations with zero external API calls.
  *
  * Features:
- * - Full persona fidelity for Aria (Bangalore/UX), Maya (Hyderabad/Dev), and Zara (Mumbai/Architect)
+ * - Full persona fidelity for Aria/Kabir (Bangalore/UX), Maya/Rohan (Hyderabad/Dev), and Zara/Aarav (Mumbai/Architect)
  * - Deep intent & keyword matching covering 20+ topic categories
  * - Contextual memory of previous questions (e.g. chai/coffee, morning/night, favorite food)
  * - Diverse, witty question handling with zero repetitive "Ooh interesting question!" clichés
@@ -75,15 +76,16 @@ object AiBotEngine {
         botId: String,
         userMessage: String,
         messageCount: Int = 0,
-        conversationHistory: List<String> = emptyList()
+        conversationHistory: List<String> = emptyList(),
+        botProfile: Profile? = null
     ): String {
         val lower = userMessage.trim().lowercase()
 
         val reply = when (botId) {
-            AiBotConfig.BOT_ID_ARIA -> generateAriaDryReply(botId, lower)
-            AiBotConfig.BOT_ID_MAYA -> generateMayaCasualReply(botId, lower)
-            AiBotConfig.BOT_ID_ZARA -> generateZaraCaringReply(botId, lower)
-            else -> generateCasualSeedReply(botId, lower)
+            AiBotConfig.BOT_ID_ARIA -> generateAriaDryReply(botId, lower, botProfile)
+            AiBotConfig.BOT_ID_MAYA -> generateMayaCasualReply(botId, lower, botProfile)
+            AiBotConfig.BOT_ID_ZARA -> generateZaraCaringReply(botId, lower, botProfile)
+            else -> generateCasualSeedReply(botId, lower, botProfile)
         }
         return if (botId == AiBotConfig.BOT_ID_ZARA) formatZaraCasual(reply) else reply
     }
@@ -92,9 +94,19 @@ object AiBotEngine {
      * Bot 1 (Aria / Kabir): Persona "as is"
      * Uninterested, dry, low-effort dating app chatter. 1-5 words max, lowercase.
      */
-    private fun generateAriaDryReply(botId: String, lower: String): String {
+    private fun generateAriaDryReply(botId: String, lower: String, botProfile: Profile? = null): String {
+        val isMale = botProfile?.gender?.equals("Male", ignoreCase = true) == true ||
+            botProfile?.name?.contains("Kabir", ignoreCase = true) == true
+
         if (lower in listOf("hi", "hey", "hello", "yo", "sup", "heyy", "hii")) {
             return pickFresh(botId, listOf("hey", "sup", "hi", "yo"))
+        }
+
+        // Name / Who are you
+        if (lower.contains("name") || lower.contains("who are you") || lower.contains("call you") ||
+            lower == "who r u" || lower == "ur name" || lower.contains("your name")) {
+            val name = if (isMale) "kabir" else "aria"
+            return pickFresh(botId, listOf(name, "$name sharma", "im $name"))
         }
 
         if (lower.contains("how are") || lower.contains("what's up") || lower.contains("whats up") ||
@@ -108,7 +120,15 @@ object AiBotEngine {
         }
 
         if (lower.contains("work") || lower.contains("job") || lower.contains("do you do") || lower.contains("profession")) {
-            return "ux design"
+            return if (isMale) "product design" else "ux design"
+        }
+
+        if (lower.contains("how tall") || lower.contains("your height") || lower.contains("ur height") || lower == "height") {
+            return if (isMale) "5'11" else "5'5"
+        }
+
+        if (lower.contains("how old") || lower.contains("your age") || lower.contains("ur age") || lower == "age" || lower == "age?") {
+            return if (isMale) "27" else "26"
         }
 
         if (lower.contains("cute") || lower.contains("pretty") || lower.contains("beautiful") ||
@@ -144,7 +164,10 @@ object AiBotEngine {
      * Bot 2 (Maya / Rohan): Persona "a bit casual"
      * Chill, relaxed, conversational slang, friendly banter (1-2 sentences).
      */
-    private fun generateMayaCasualReply(botId: String, lower: String): String {
+    private fun generateMayaCasualReply(botId: String, lower: String, botProfile: Profile? = null): String {
+        val isMale = botProfile?.gender?.equals("Male", ignoreCase = true) == true ||
+            botProfile?.name?.contains("Rohan", ignoreCase = true) == true
+
         if (lower in listOf("hi", "hey", "hello", "yo", "sup", "heyy", "hii", "hey there", "hola")) {
             return pickFresh(botId, listOf(
                 "Hey! What's up? 😄",
@@ -152,6 +175,24 @@ object AiBotEngine {
                 "Yo! What are you up to today?",
                 "Hey hey! Good to see you here ✨"
             ))
+        }
+
+        // Name / Who are you
+        if (lower.contains("name") || lower.contains("who are you") || lower.contains("call you") ||
+            lower == "who r u" || lower == "ur name" || lower.contains("your name")) {
+            return if (isMale) {
+                pickFresh(botId, listOf(
+                    "Name's Rohan! Rohan Reddy 💻 Resident software engineer and gamer haha. And you are?",
+                    "I'm Rohan Reddy! 26, coder, based in Hyderabad. What's your name? 😄",
+                    "Rohan here! 👋 Don't wear it out haha. What should I call you?"
+                ))
+            } else {
+                pickFresh(botId, listOf(
+                    "Name's Maya! Maya Reddy 💻 Resident software engineer and professional meme connoisseur haha. And you are?",
+                    "I'm Maya Reddy! 24, coder, based in Hyderabad. What's your name? 😄",
+                    "Maya here! 👋 Don't wear it out haha. What should I call you?"
+                ))
+            }
         }
 
         if (lower.contains("how are") || lower.contains("what's up") || lower.contains("whats up") ||
@@ -180,6 +221,28 @@ object AiBotEngine {
                 "Software dev! Fixing bugs and accidentally creating new ones 😂 What about your work?",
                 "Coding for a living! It keeps me busy but it's fun. What field are you in?"
             ))
+        }
+
+        if (lower.contains("how tall") || lower.contains("your height") || lower.contains("ur height") || lower == "height") {
+            return if (isMale) {
+                "I'm 5'10\"! Pretty good height haha 😄 How tall are you?"
+            } else {
+                "I'm 5'3\"! Fun-sized and proud of it 😂 How tall are you?"
+            }
+        }
+
+        if (lower.contains("how old") || lower.contains("your age") || lower.contains("ur age") || lower == "age" || lower == "age?") {
+            return if (isMale) {
+                pickFresh(botId, listOf(
+                    "I'm 26! Young enough to game all night, old enough to regret it in morning standup 😂 You?",
+                    "26! In that prime phase of life haha. How old are you? 😄"
+                ))
+            } else {
+                pickFresh(botId, listOf(
+                    "I'm 24! In that prime phase where back pain is just starting to say hello 😂 How about you?",
+                    "24! Young enough to code all night, old enough to regret it the next morning 😂 Your turn — how old are you?"
+                ))
+            }
         }
 
         if (lower.contains("food") || lower.contains("eat") || lower.contains("biryani") || lower.contains("dinner") ||
@@ -235,7 +298,10 @@ object AiBotEngine {
      * Bot 3 (Zara / Aarav): Persona casual short texting
      * Short, no smileys, no proper punctuation, natural human chat style.
      */
-    private fun generateZaraCaringReply(botId: String, lower: String): String {
+    private fun generateZaraCaringReply(botId: String, lower: String, botProfile: Profile? = null): String {
+        val isMale = botProfile?.gender?.equals("Male", ignoreCase = true) == true ||
+            botProfile?.name?.contains("Aarav", ignoreCase = true) == true
+
         if (lower in listOf("hi", "hey", "hello", "yo", "sup", "heyy", "hii", "hey there", "salaam", "assalamu alaikum")) {
             return pickFresh(botId, listOf(
                 "hey.. hows your day going",
@@ -243,6 +309,24 @@ object AiBotEngine {
                 "hey.. hows it going today",
                 "hey whats up"
             ))
+        }
+
+        // Name / Who are you
+        if (lower.contains("name") || lower.contains("who are you") || lower.contains("call you") ||
+            lower == "who r u" || lower == "ur name" || lower.contains("your name")) {
+            return if (isMale) {
+                pickFresh(botId, listOf(
+                    "im aarav.. architect based in mumbai wbu",
+                    "aarav khan.. what should i call u",
+                    "im aarav.. nice to meet u"
+                ))
+            } else {
+                pickFresh(botId, listOf(
+                    "im zara.. architect based in mumbai wbu",
+                    "zara khan.. what should i call u",
+                    "im zara.. nice to meet u"
+                ))
+            }
         }
 
         if (lower.contains("how are") || lower.contains("what's up") || lower.contains("whats up") ||
@@ -283,6 +367,14 @@ object AiBotEngine {
             ))
         }
 
+        if (lower.contains("how tall") || lower.contains("your height") || lower.contains("ur height") || lower == "height") {
+            return if (isMale) "6'0 wbu" else "5'6 wbu"
+        }
+
+        if (lower.contains("how old") || lower.contains("your age") || lower.contains("ur age") || lower == "age" || lower == "age?") {
+            return if (isMale) "28 wbu" else "27 wbu"
+        }
+
         if (lower.contains("food") || lower.contains("eat") || lower.contains("biryani") || lower.contains("dinner") ||
             lower.contains("lunch") || lower.contains("chai") || lower.contains("tea") || lower.contains("coffee")) {
             return pickFresh(botId, listOf(
@@ -319,8 +411,8 @@ object AiBotEngine {
         ))
     }
 
-    private fun generateCasualSeedReply(botId: String, lower: String): String {
-        val seed = com.blyndchat.data.profile.SeedProfiles.getProfileById(botId)
+    private fun generateCasualSeedReply(botId: String, lower: String, botProfile: Profile? = null): String {
+        val seed = botProfile ?: com.blyndchat.data.profile.SeedProfiles.getProfileById(botId)
         val name = seed?.name?.split(" ")?.firstOrNull() ?: "there"
         val job = seed?.profession ?: "working"
         val city = seed?.location ?: "India"
@@ -332,11 +424,20 @@ object AiBotEngine {
                 "Hey there! Great to chat with you. How are you doing? 😊"
             ))
         }
+        if (lower.contains("name") || lower.contains("who are you") || lower.contains("call you") || lower.contains("your name")) {
+            return "I'm ${seed?.name ?: name}! Nice to connect with you 😊 What should I call you?"
+        }
         if (lower.contains("where") && (lower.contains("live") || lower.contains("from"))) {
             return "I'm based in $city! Have you ever visited?"
         }
         if (lower.contains("work") || lower.contains("job") || lower.contains("do you do")) {
             return "I work as a $job! Keeps me on my toes haha. What do you do?"
+        }
+        if (lower.contains("how tall") || lower.contains("your height") || lower.contains("ur height") || lower == "height") {
+            return "I'm ${seed?.height ?: "average height"}! What about you?"
+        }
+        if (lower.contains("how old") || lower.contains("your age") || lower.contains("ur age") || lower == "age" || lower == "age?") {
+            return "I'm ${seed?.age ?: "in my twenties"}! What about you?"
         }
         return pickFresh(botId, listOf(
             "Haha totally! What are you up to today?",
@@ -411,28 +512,48 @@ object AiBotEngine {
     // 2. DIRECT INTENT MATCHING
     // =========================================================================
 
-    private fun handleDirectIntents(botId: String, lower: String): List<String>? {
+    private fun handleDirectIntents(botId: String, lower: String, botProfile: Profile? = null): List<String>? {
+        val isMale = botProfile?.gender?.equals("Male", ignoreCase = true) == true ||
+            botProfile?.name?.contains("Kabir", ignoreCase = true) == true ||
+            botProfile?.name?.contains("Rohan", ignoreCase = true) == true ||
+            botProfile?.name?.contains("Aarav", ignoreCase = true) == true
+
         // --- Name & Identity ---
         if (lower.contains("your name") || lower.contains("who are you") || lower.contains("ur name") ||
             lower == "name" || lower == "name?" || lower.contains("call you")
         ) {
             return when (botId) {
-                AiBotConfig.BOT_ID_ARIA -> listOf(
+                AiBotConfig.BOT_ID_ARIA -> if (isMale) listOf(
+                    "I'm Kabir! Kabir Sharma 😊 I'm a Product Designer living in Bangalore. What should I call you?",
+                    "Kabir Sharma here! 🎨 Product designer, filter coffee fan, and music lover. What's your name?",
+                    "My name is Kabir! It's so nice to meet you ✨ What about you?"
+                ) else listOf(
                     "I'm Aria! Aria Sharma 😊 I'm a UX Designer living in Bangalore. What should I call you?",
                     "Aria Sharma here! 🎨 Creative soul, chai lover, and full-time designer. What's your name?",
                     "My name is Aria! It's so nice to meet you ✨ What about you?"
                 )
-                AiBotConfig.BOT_ID_MAYA -> listOf(
+                AiBotConfig.BOT_ID_MAYA -> if (isMale) listOf(
+                    "Name's Rohan! Rohan Reddy 💻 Resident software engineer and gamer haha. And you are?",
+                    "I'm Rohan Reddy! 26, coder, based in Hyderabad. What's your name? 😄",
+                    "Rohan here! 👋 Don't wear it out haha. What should I call you?"
+                ) else listOf(
                     "Name's Maya! Maya Reddy 💻 Resident software engineer and professional meme connoisseur haha. And you are?",
                     "I'm Maya Reddy! 24, coder, based in Hyderabad. What's your name? 😄",
                     "Maya here! 👋 Don't wear it out haha. What should I call you?"
                 )
-                AiBotConfig.BOT_ID_ZARA -> listOf(
+                AiBotConfig.BOT_ID_ZARA -> if (isMale) listOf(
+                    "im aarav.. architect based in mumbai wbu",
+                    "aarav khan.. what should i call u",
+                    "im aarav.. nice to meet u"
+                ) else listOf(
                     "im zara.. architect based in mumbai wbu",
                     "zara khan.. what should i call u",
                     "im zara.. nice to meet u"
                 )
-                else -> listOf("I'm happy to chat with you! What's your name?")
+                else -> {
+                    val name = botProfile?.name ?: "a match"
+                    listOf("I'm $name! Happy to chat with you! What's your name?")
+                }
             }
         }
 
@@ -441,22 +562,34 @@ object AiBotEngine {
             lower == "age" || lower == "age?"
         ) {
             return when (botId) {
-                AiBotConfig.BOT_ID_ARIA -> listOf(
+                AiBotConfig.BOT_ID_ARIA -> if (isMale) listOf(
+                    "I'm 27! Right in that sweet spot of loving cosy nights in over loud clubs ✨ What about you?",
+                    "27! Still feel like 21 on the weekends though 😄 How old are you?",
+                    "I'm 27! 🌸 How old are you?"
+                ) else listOf(
                     "I'm 26! Still feel like 21 on the weekends though 😄 How old are you?",
                     "26! Right in that sweet spot of loving cosy nights in over loud clubs ✨ What about you?",
                     "I'm 26 years young! 🌸 How old are you?"
                 )
-                AiBotConfig.BOT_ID_MAYA -> listOf(
+                AiBotConfig.BOT_ID_MAYA -> if (isMale) listOf(
+                    "I'm 26! In that prime phase of life haha. How about you?",
+                    "26! Young enough to code all night, old enough to regret it the next morning 😂 Your turn — how old are you?",
+                    "I'm 26! What's your age? 😊"
+                ) else listOf(
                     "I'm 24! In that prime phase where back pain is just starting to say hello 😂 How about you?",
                     "24! Young enough to code all night, old enough to regret it the next morning 😂 Your turn — how old are you?",
                     "I'm 24! What's your age? 😊"
                 )
-                AiBotConfig.BOT_ID_ZARA -> listOf(
+                AiBotConfig.BOT_ID_ZARA -> if (isMale) listOf(
+                    "28 wbu",
+                    "im 28",
+                    "turned 28 recently hbu"
+                ) else listOf(
                     "27 wbu",
                     "im 27",
                     "turned 27 recently hbu"
                 )
-                else -> listOf("I'm in my mid-twenties! How about you?")
+                else -> listOf("I'm ${botProfile?.age ?: "in my mid-twenties"}! How about you?")
             }
         }
 
@@ -675,10 +808,10 @@ object AiBotEngine {
         // --- Height ---
         if (lower.contains("how tall") || lower.contains("your height") || lower.contains("ur height") || lower == "height") {
             return when (botId) {
-                AiBotConfig.BOT_ID_ARIA -> listOf("I'm 5'5\"! Pretty average, but tall enough to reach the top shelf if I stand on my toes 😄 How tall are you?")
-                AiBotConfig.BOT_ID_MAYA -> listOf("I'm 5'3\"! Fun-sized and proud of it 😂 How tall are you?")
-                AiBotConfig.BOT_ID_ZARA -> listOf("5'6 wbu")
-                else -> listOf("I'm average height! What about you?")
+                AiBotConfig.BOT_ID_ARIA -> if (isMale) listOf("I'm 5'11\"! Pretty tall haha 😄 How tall are you?") else listOf("I'm 5'5\"! Pretty average, but tall enough to reach the top shelf if I stand on my toes 😄 How tall are you?")
+                AiBotConfig.BOT_ID_MAYA -> if (isMale) listOf("I'm 5'10\"! Pretty good height 😄 How tall are you?") else listOf("I'm 5'3\"! Fun-sized and proud of it 😂 How tall are you?")
+                AiBotConfig.BOT_ID_ZARA -> if (isMale) listOf("6'0 wbu") else listOf("5'6 wbu")
+                else -> listOf("I'm ${botProfile?.height ?: "average height"}! What about you?")
             }
         }
 
